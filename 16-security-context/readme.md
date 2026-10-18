@@ -91,6 +91,17 @@ kubectl label namespace my-app \
   pod-security.kubernetes.io/enforce=restricted \
   pod-security.kubernetes.io/enforce-version=latest
 ```
+Try it:
+```bash
+kubectl create namespace my-app
+kubectl label namespace my-app pod-security.kubernetes.io/enforce=restricted pod-security.kubernetes.io/enforce-version=latest
+kubectl apply -n my-app -f privileged-pod.yaml
+# Error ... forbidden: violates PodSecurity "restricted:latest": privileged ...
+kubectl apply -n my-app -f secure-pod.yaml
+# pod/secure-pod created: the hardened baseline passes the "restricted" level
+kubectl delete namespace my-app
+```
+`secure-pod.yaml` needs `runAsNonRoot: true` and `seccompProfile: RuntimeDefault` to pass `restricted`: remove one of them and apply again to read the exact error message.
 
 The 3 PSA levels:
 - **privileged**: allow everything. Use only for kube-system and infra add-ons that legitimately need root.

@@ -14,11 +14,62 @@ Note: These operations executed by cluster administrators. Maintenance operation
 - **drain node**: Mark the node as unschedulable. Running pods are evicted. Add **--ignore-daemonsets** option if daemonsets are runnig on the node
 - **uncordon node**:Mark the node as schedulable after maintenance
 
+### Practice: drain a node without dropping traffic (PodDisruptionBudget)
+
+A **PodDisruptionBudget (PDB)** tells Kubernetes how many pods of an app must stay available during **voluntary** disruptions (drain, node upgrade, autoscaler scale-down). `kubectl drain` respects it: it evicts pods one by one and waits when an eviction would break the budget.
+
+`01-app-with-pdb.yaml` creates a Deployment `web` with 4 replicas spread over the nodes, and a PDB `web-pdb` with `minAvailable: 3`.
+```bash
+kubectl apply -f 01-app-with-pdb.yaml
+kubectl rollout status deployment/web
+kubectl get pdb web-pdb
+# ALLOWED DISRUPTIONS = 1 (4 running - 3 minimum)
+kubectl get pods -l app=web -o wide
+```
+Pick a node that runs **2** of the `web` pods, and drain it:
+```bash
+NODE=<node-name>
+kubectl drain $NODE --ignore-daemonsets --delete-emptydir-data
+```
+Read the output:
+```
+evicting pod default/web-...-dqnxk
+evicting pod default/web-...-4qhfg
+error when evicting pods/"web-...-dqnxk" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/web-...-4qhfg evicted
+pod/web-...-dqnxk evicted
+node/<node-name> drained
+```
+The second eviction is **refused** until the replacement of the first pod is Ready on another node: there are never fewer than 3 pods serving traffic.
+```bash
+kubectl get nodes                       # the drained node shows SchedulingDisabled
+kubectl get pods -l app=web -o wide     # 4 pods, none on the drained node
+kubectl uncordon $NODE                  # maintenance done
+kubectl delete -f 01-app-with-pdb.yaml
+```
+**Note:** on EKS, managed node group upgrades (`eksctl upgrade nodegroup`) and the Cluster Autoscaler / Karpenter (chapter 20) drain nodes the same way and also respect PDBs. A PDB with `minAvailable` equal to the replica count blocks every drain: don't do that.
+
+### Real-world scenario: replace a broken worker node
+
+Symptom seen while testing this course: every `kubectl exec` / `kubectl logs` to the pods of **one** node failed with `error: unable to upgrade connection: Unauthorized`, while the other nodes worked. Cause: a container with the `SYS_TIME` capability had changed the clock of the node to 2020 (see chapter 16), so the node TLS certificates were "not yet valid".
+
+On EKS, nodes are **cattle, not pets**: don't repair a broken node, replace it. The managed node group (an Auto Scaling group) creates a new identical node automatically:
+```bash
+NODE=<broken-node-name>
+kubectl cordon $NODE
+kubectl drain $NODE --ignore-daemonsets --delete-emptydir-data --force
+INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=private-dns-name,Values=$NODE" --query "Reservations[0].Instances[0].InstanceId" --output text)
+aws autoscaling terminate-instance-in-auto-scaling-group --instance-id $INSTANCE_ID --no-should-decrement-desired-capacity
+kubectl get nodes -w     # a new node joins and becomes Ready after 2 to 3 minutes
+```
+
 ## Cluster High availability
 
 In production environments, it is recommended to have many nodes in the control plane (odd numbers: 3, 5 ..) running for high availability.
 
 ## Backing up a cluster
+**Note:** on EKS (and every managed Kubernetes) AWS runs and backs up the control plane, including etcd: you have no access to etcd. You back up **your** objects and volumes instead (Velero, AWS Backup, and Git with ArgoCD in chapter 21). The `etcdctl` commands below apply to self-managed clusters (kubeadm, Killercoda).
+
 For disaster recovery, it is important to backup cluster state periodically. This can be done by taking a snapshot of the etcd (`etcdctl snapshot save` with necessary parameters). To restore the state of the cluster, use `etcdctl snapshot restore` with necessary options.
 It is also useful to save cluster certificates.
 

@@ -115,6 +115,7 @@ spec:
 ```
 - Apply and verify the object created
 ```bash
+kubectl create ns test
 kubectl apply -f 03-test-quota.yaml
 kubectl get quota -A
 ```

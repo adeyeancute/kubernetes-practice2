@@ -4,6 +4,9 @@ metadata:
   name: secure-pod
 spec:
   securityContext:   # Pod-level security context
+    runAsNonRoot: true          # required by the PSA "restricted" level
+    seccompProfile:
+      type: RuntimeDefault      # required by "restricted": filter dangerous Linux syscalls
     runAsUser: 1000
     runAsGroup: 3000
     fsGroup: 2000
