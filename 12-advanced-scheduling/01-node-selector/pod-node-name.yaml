@@ -6,7 +6,7 @@ spec:
   nodeName: node01 # schedule pod to specific node
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     imagePullPolicy: IfNotPresent
 #
 #

@@ -10,7 +10,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
 #
 # Creating a simple pod with the nginx image. 
 # There are no cpu or memory limits applied on pod. 

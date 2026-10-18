@@ -94,7 +94,7 @@ metadata:
 spec:
   containers:
   - name: app
-    image: busybox
+    image: busybox:1.36
     command: [ "sh", "-c", "echo 'Hello from EBS!' > /data/test.txt && sleep 3600" ]
     volumeMounts:
     - mountPath: "/data"
@@ -135,7 +135,7 @@ spec:
   nodeName: # add the nodeName here
   containers:
   - name: app
-    image: busybox
+    image: busybox:1.36
     command: [ "sh", "-c", "echo 'Fail to run!' >> /data/test.txt && sleep 3600" ]
     volumeMounts:
     - mountPath: "/data"
@@ -183,7 +183,7 @@ spec:
   nodeName: # add the nodeName of the first node here
   containers:
   - name: app
-    image: busybox
+    image: busybox:1.36
     command: [ "sh", "-c", "echo 'Hello world!' >> /data/test.txt && sleep 3600" ]
     volumeMounts:
     - mountPath: "/data"

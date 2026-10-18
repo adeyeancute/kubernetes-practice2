@@ -42,7 +42,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       ports:
         - containerPort: 80
 ---
@@ -69,7 +69,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       ports:
         - containerPort: 80
 ---
@@ -96,7 +96,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       ports:
         - containerPort: 80
 ---

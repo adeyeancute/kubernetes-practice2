@@ -9,7 +9,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

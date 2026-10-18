@@ -14,7 +14,7 @@ metadata:
 spec:
   containers:
     - name: app-container
-      image: busybox:latest
+      image: busybox:1.36
       command: ["/bin/sh", "-c", "$(STARTUP_COMMAND)"]
       env:
        - name: STARTUP_COMMAND

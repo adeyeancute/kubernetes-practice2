@@ -82,7 +82,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       ports:
       - containerPort: 80
       env:
@@ -118,7 +118,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       volumeMounts:
         - name: config-volume
           mountPath: /config

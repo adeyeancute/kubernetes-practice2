@@ -5,7 +5,7 @@ metadata:
 spec:
  containers:
    - name: utrains-app
-     image: httpd
+     image: httpd:2.4
 #
 #
 # Here we create a simple pod that will run apache (httpd image)

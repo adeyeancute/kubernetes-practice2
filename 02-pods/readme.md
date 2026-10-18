@@ -21,7 +21,7 @@ metadata:
 spec:
  containers:
    - name: utrains-app
-     image: httpd
+     image: httpd:2.4
 ```
 
 - Create the pod in the cluster with the command:
@@ -93,7 +93,7 @@ metadata:
 spec:
  containers:
    - name: utrains-app
-     image: httpd
+     image: httpd:2.4
 ```
 
 deploy and verify the pod
@@ -123,7 +123,7 @@ metadata:
 spec:
   containers:
     - name: utrains-app
-      image: httpd
+      image: httpd:2.4
       ports:
         - containerPort: 80
           name: http
@@ -159,7 +159,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
 ```
 Apply the pod in the cluster and check
 ```bash
@@ -189,7 +189,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       resources:
         limits:
           memory: "250Mi"
@@ -225,7 +225,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: nginx
+      image: nginx:1.27
       resources:
         limits:
           memory: "250Mi"

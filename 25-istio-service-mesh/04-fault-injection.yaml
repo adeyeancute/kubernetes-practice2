@@ -1,0 +1,20 @@
+# Chaos testing: delay 50% of requests to v1 by 3 seconds. The 2s timeout from the canary
+# VirtualService is replaced by this one, so clients now see slow responses.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: web
+  namespace: mesh-demo
+spec:
+  hosts:
+  - web
+  http:
+  - fault:
+      delay:
+        percentage:
+          value: 50
+        fixedDelay: 3s
+    route:
+    - destination:
+        host: web
+        subset: v1

@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "800Mi"
@@ -24,7 +24,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "300Mi"

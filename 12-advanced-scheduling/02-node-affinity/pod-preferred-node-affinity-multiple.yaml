@@ -26,4 +26,4 @@ spec:
             - ssd       
   containers:
     - name: utrains-app
-      image: httpd
+      image: httpd:2.4

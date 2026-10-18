@@ -1,0 +1,110 @@
+# Namespace with automatic sidecar injection + two versions of the same app + a client pod
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mesh-demo
+  labels:
+    istio-injection: enabled   # every new pod in this namespace gets an Envoy sidecar
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-v1
+  namespace: mesh-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: web
+        version: v1
+    spec:
+      containers:
+      - name: web
+        image: hashicorp/http-echo:1.0
+        args: ["-text=hello from v1", "-listen=:8080"]
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 20m
+            memory: 32Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-v2
+  namespace: mesh-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: web
+        version: v2
+    spec:
+      containers:
+      - name: web
+        image: hashicorp/http-echo:1.0
+        args: ["-text=hello from v2", "-listen=:8080"]
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 20m
+            memory: 32Mi
+---
+# One Service selects BOTH versions (app: web). Without Istio, traffic splits ~50/50 by pod count.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: mesh-demo
+spec:
+  selector:
+    app: web
+  ports:
+  - name: http        # Istio uses the port name (or appProtocol) to detect the protocol
+    port: 80
+    targetPort: 8080
+---
+# Client pod used to send requests from inside the mesh. Its service account becomes its
+# mesh identity (used by the AuthorizationPolicy in step 6).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: client
+  namespace: mesh-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  namespace: mesh-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      serviceAccountName: client
+      containers:
+      - name: curl
+        image: curlimages/curl:8.10.1
+        command: ["sleep", "infinity"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi

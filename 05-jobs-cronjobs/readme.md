@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
       - name: hello
-        image: busybox
+        image: busybox:1.36
         command: ["echo", "Hello from my first Job!"]
       restartPolicy: Never
 ```
@@ -60,7 +60,7 @@ spec:
         spec:
           containers:
           - name: hello
-            image: busybox
+            image: busybox:1.36
             command: ["echo", "Hello from CronJob!"]
           restartPolicy: OnFailure
 ```
@@ -122,7 +122,7 @@ spec:
     spec:
       containers:
       - name: backup
-        image: postgres
+        image: postgres:16-alpine
         command: ["pg_dump", "-h", "db-service", "-U", "user", "mydb", ">", "/backup/db.sql"]
       restartPolicy: OnFailure
 ```
@@ -141,7 +141,7 @@ spec:
         spec:
           containers:
           - name: cleanup
-            image: busybox
+            image: busybox:1.36
             command: ["find", "/data", "-type", "f", "-mtime", "+7", "-delete"]
           restartPolicy: OnFailure
 ```

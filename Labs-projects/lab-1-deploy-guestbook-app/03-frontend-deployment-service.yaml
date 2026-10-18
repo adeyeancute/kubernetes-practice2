@@ -1,3 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+data:
+  GET_HOSTS_FROM: "dns"
+---
 # SOURCE: https://cloud.google.com/kubernetes-engine/docs/tutorials/guestbook
 apiVersion: apps/v1
 kind: Deployment
@@ -18,9 +25,9 @@ spec:
       containers:
       - name: php-redis
         image: us-docker.pkg.dev/google-samples/containers/gke/gb-frontend:v5
-        env:
-        - name: GET_HOSTS_FROM # simple way to enable frontend and redis communication 
-          value: "dns"
+        envFrom:
+        - configMapRef:
+            name: frontend-config # GET_HOSTS_FROM=dns: find redis-leader / redis-follower by Service DNS name
         resources:
           requests:
             cpu: 100m

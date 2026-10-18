@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: limits-demo
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-limits
+  namespace: limits-demo
+spec:
+  limits:
+  - type: Container
+    default:            # limits added to a container that sets none
+      cpu: 300m
+      memory: 256Mi
+    defaultRequest:     # requests added to a container that sets none
+      cpu: 100m
+      memory: 128Mi
+    max:                # no container may ask for more than this
+      cpu: "1"
+      memory: 512Mi
+    min:                # no container may ask for less than this
+      cpu: 50m
+      memory: 32Mi

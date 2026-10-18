@@ -1,0 +1,19 @@
+# Zero trust: only the "client" service account may call the web service, and only with GET.
+# Identity comes from the mTLS certificate, not from IP addresses.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: web-allow-client
+  namespace: mesh-demo
+spec:
+  selector:
+    matchLabels:
+      app: web
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/mesh-demo/sa/client"]
+    to:
+    - operation:
+        methods: ["GET"]

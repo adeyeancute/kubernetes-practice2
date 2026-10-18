@@ -93,7 +93,7 @@ spec:
     spec:
       containers:
       - name: app1
-        image: nginx
+        image: nginx:1.27
         ports:
         - containerPort: 80
 ---
@@ -129,7 +129,7 @@ spec:
     spec:
       containers:
       - name: app2
-        image: httpd
+        image: httpd:2.4
         ports:
         - containerPort: 80
 ---

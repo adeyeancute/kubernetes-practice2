@@ -10,6 +10,6 @@ spec:
         spec:
           containers:
           - name: hello
-            image: busybox
+            image: busybox:1.36
             command: ["sh", "-c", "echo Hello at $(date)"]
           restartPolicy: OnFailure

@@ -11,7 +11,7 @@ metadata:
 spec:
   containers:
     - name: memhog
-      image: polinux/stress:latest
+      image: polinux/stress:1.0.4
       command: ["stress"]
       args: ["--vm", "1", "--vm-bytes", "100M", "--vm-hang", "1"]
       resources:

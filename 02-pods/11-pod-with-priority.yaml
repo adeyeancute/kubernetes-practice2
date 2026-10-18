@@ -7,7 +7,7 @@ spec:
   priorityClassName: critical-pods
   containers:
     - name: logging-container
-      image: busybox
+      image: busybox:1.36
       command: ["sh", "-c", "while true; do echo Logging; sleep 10; done"]
       resources:
         requests:
@@ -23,7 +23,7 @@ spec:
   priorityClassName: low-priority-pods
   containers:
     - name: batch-container
-      image: busybox
+      image: busybox:1.36
       command: ["sh", "-c", "while true; do echo Processing; sleep 10; done"]
       resources:
         requests:

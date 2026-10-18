@@ -148,7 +148,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx
+        image: nginx:1.27
         volumeMounts:
         - name: efs-volume
           mountPath: /data

@@ -8,7 +8,7 @@ Most of the practice in this repository can be done using kubernetes playgrounds
 
 1. In your browser, go to the Killercoda official website at [https://killercoda.com/](https://killercoda.com/).
 2. Click on Playgrounds.
-3. Select the latest Kubernetes playground (Kubernetes 1.32 at the moment of writing this documentation).
+3. Select the latest Kubernetes playground (the version number changes over time; always pick the newest one listed).
 4. Sign in using your GitHub account. (You can also sign in using google or your email).
 5. Killercoda will authenticate with your GitHub account. Validate if required.
 6. Your environment is ready. You can run the command `kubectl get nodes` in the terminal displayed and start practicing.
@@ -108,8 +108,7 @@ choco install eksctl
 #### Install eksctl on MAC
 You can use Homebrew to install eksctl with the command:
  ```bash
-brew tap weaveworks/tap
-brew install weaveworks/tap/eksctl
+brew install eksctl
 ```
 
 Refer to the following documentation to install eksctl on your system if the above commands do not work for you: [Link here](https://eksctl.io/installation/)
@@ -118,8 +117,11 @@ Refer to the following documentation to install eksctl on your system if the abo
 
 Use the following command to create a cluster:
 ```bash
-eksctl create cluster --name my-cluster --region us-east-1 --nodegroup-name my-nodes --node-type t3.small --nodes 2 --nodes-min 1 --nodes-max 2
+eksctl create cluster --name my-cluster --region us-east-1 --version 1.36 --with-oidc --nodegroup-name my-nodes --node-type t3.medium --nodes 3 --nodes-min 2 --nodes-max 4
 ```
+- `--version 1.36`: the Kubernetes version. Use a version listed by `aws eks describe-cluster-versions` (pick the one with `defaultVersion: true`).
+- `--with-oidc`: creates the IAM OIDC provider needed later for IAM roles for service accounts (chapters 13, 20, 24).
+- `t3.medium` x 3: each t3.medium node can run 17 pods (a t3.small only 11). The later chapters (ArgoCD, cert-manager, Istio, autoscaling) need that room. Three nodes also spread across availability zones for the scheduling chapter.
 **Note:** This command may complete in 10 to 15 minutes depending on your computer and network connection. Be patient and wait till the end of the process
 
 🚨 **WARNING:** If you encounter the following error `Error: invalid version, supported values: 1.19, 1.20, 1.21, 1.22 ...`, you need to upgrade your eksctl version. On Windows, run `choco upgrade eksctl`, or `brew upgrade eksctl` on Mac.

@@ -12,6 +12,8 @@ spec:
   selector:
     matchLabels:
       app: redis
+      role: follower
+      tier: backend
   template:
     metadata:
       labels:

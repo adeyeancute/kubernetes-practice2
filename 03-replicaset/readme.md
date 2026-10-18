@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: webserver
-          image: httpd
+          image: httpd:2.4
 ```
 
 - Apply the file in the cluster and verify the created objects

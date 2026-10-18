@@ -39,7 +39,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
   nodeSelector:
     disktype: ssd
 ```
@@ -65,7 +65,7 @@ spec:
   nodeName: node01 # schedule pod to specific node
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
 ```
 Apply the pod in the cluster and verify where it has been placed. The pod should run on the node with the name `node01`
 
@@ -115,7 +115,7 @@ spec:
             - ssd          
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     imagePullPolicy: IfNotPresent
 ``` 
 Apply and verify. The pod will prefer to be palced of the node with label `disktype=ssd`. But it can also be placed elsewhere.
@@ -145,7 +145,7 @@ spec:
             - ssd            
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     imagePullPolicy: IfNotPresent
 ``` 
 Apply and verify that the pod is placed on the node with label `disktype=ssd`
@@ -191,7 +191,7 @@ spec:
             - ssd            
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     imagePullPolicy: IfNotPresent
 ```
 
@@ -226,7 +226,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
 ```
 Apply and verify the node where the pod is placed
 ```bash
@@ -245,7 +245,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
   affinity:
     podAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -279,7 +279,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -358,7 +358,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
       ports:
         - containerPort: 80
           name: http
@@ -388,7 +388,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
       ports:
         - containerPort: 80
           name: http
@@ -418,7 +418,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
       ports:
         - containerPort: 80
           name: http
@@ -447,7 +447,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
       ports:
         - containerPort: 80
           name: http
@@ -472,9 +472,52 @@ kubectl delete pod webserver3
 kubectl delete pod webserver4
 ```
 
+### Topology spread constraints
+
+Pod anti-affinity says "never put two of these pods together". That is too strict when you have more replicas than nodes. **Topology spread constraints** say "spread these pods **evenly**" across zones, nodes, or any other node label.
+
+Key fields:
+- **topologyKey**: the node label that defines a "domain" (`topology.kubernetes.io/zone` for availability zones, `kubernetes.io/hostname` for nodes).
+- **maxSkew**: the largest allowed difference in pod count between the fullest and the emptiest domain.
+- **whenUnsatisfiable**: `DoNotSchedule` (hard rule, the pod stays Pending) or `ScheduleAnyway` (soft rule, the scheduler just prefers balance).
+- **labelSelector**: which pods are counted.
+
+**Note:** This practice needs a cluster with several nodes in several zones (the EKS cluster).
+
+**Example**: Spread 6 nginx replicas across availability zones (hard) and across nodes (soft). The manifest is `05-topology-spread/deployment-topology-spread.yaml`
+```yaml
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: web-spread
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: web-spread
+```
+Apply it, then count the pods per zone and per node:
+```bash
+kubectl apply -f 05-topology-spread/deployment-topology-spread.yaml
+kubectl get nodes -L topology.kubernetes.io/zone
+kubectl get pods -l app=web-spread -o wide
+```
+With 2 zones you should see 3 pods in each zone. Scale to 7 replicas and the extra pod still schedules (skew becomes 1, which is allowed):
+```bash
+kubectl scale deployment web-spread --replicas=7
+kubectl get pods -l app=web-spread -o wide
+```
+
 ## Cleanup
 
 ```bash
+# Topology spread
+kubectl delete -f 05-topology-spread/deployment-topology-spread.yaml --ignore-not-found
+
 # Node selector
 kubectl delete -f 01-node-selector/pod-node-selector.yaml --ignore-not-found
 kubectl delete -f 01-node-selector/pod-node-name.yaml --ignore-not-found

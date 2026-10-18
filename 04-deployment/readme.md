@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:1.14.2
+        image: nginx:1.26
         ports:
         - containerPort: 80
 ```
@@ -51,11 +51,11 @@ kubectl get pods -o wide
 
 3. Update the deployment (rollout)
 
-- Update the nginx image from 1.14.2 to 1.16.1
+- Update the nginx image from 1.26 to 1.27
 
-Let's update the nginx Pods to use the `nginx:1.16.1` image instead of the `nginx:1.14.2` image
+Let's update the nginx Pods to use the `nginx:1.27` image instead of the `nginx:1.26` image
 ```bash
-kubectl set image deployment/nginx-deployment nginx=nginx:1.16.1
+kubectl set image deployment/nginx-deployment nginx=nginx:1.27
 ```
 To see the rollout status, run:
 ```bash
@@ -70,9 +70,9 @@ kubectl describe deployment nginx-deployment
 ```
 NB: you can also use the `kubectl edit` command to update the manifest
 
-- Update the image including and error: instead of 1.16.1 use 1.161nf
+- Update the image including and error: instead of 1.27 use 1.27nf
 ```bash
-kubectl set image deployment/nginx-deployment nginx=nginx:1.161nf
+kubectl set image deployment/nginx-deployment nginx=nginx:1.27nf
 ```
 To see the rollout status, run:
 ```bash
@@ -145,7 +145,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:1.14.2
+        image: nginx:1.26
         ports:
         - containerPort: 80
   strategy:
@@ -175,7 +175,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:1.14.2
+        image: nginx:1.26
         ports:
         - containerPort: 80
   strategy:
@@ -201,6 +201,6 @@ To enable autoscaling for a deployment, we need a specific object called **HPA (
 ```bash
 kubectl delete -f 01-nginx-deployment.yaml --ignore-not-found
 kubectl delete -f 02-deployment-rolling-update.yaml --ignore-not-found
-kubectl delete -f "03- deployment-recreate.yaml" --ignore-not-found
+kubectl delete -f 03-deployment-recreate.yaml --ignore-not-found
 kubectl delete -f beta-deployment.yaml --ignore-not-found
 ```

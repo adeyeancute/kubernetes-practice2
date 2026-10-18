@@ -1,0 +1,33 @@
+# Canary release: send 90% of traffic to v1 and 10% to v2, whatever the pod counts are
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: web
+  namespace: mesh-demo
+spec:
+  hosts:
+  - web
+  http:
+  # Header-based routing: testers who send "x-canary: true" always reach v2
+  - match:
+    - headers:
+        x-canary:
+          exact: "true"
+    route:
+    - destination:
+        host: web
+        subset: v2
+  # Everyone else: weighted split
+  - route:
+    - destination:
+        host: web
+        subset: v1
+      weight: 90
+    - destination:
+        host: web
+        subset: v2
+      weight: 10
+    timeout: 2s
+    retries:
+      attempts: 2
+      perTryTimeout: 1s

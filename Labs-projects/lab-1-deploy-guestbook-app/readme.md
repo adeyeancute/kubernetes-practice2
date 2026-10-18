@@ -32,9 +32,9 @@ Redis (Remote Dictionary Server) is an open-source, **in-memory** data store mak
 
 #### Deploy Redis leader
 
-- Create and apply a Redis leader deployment (`01-redis-deployment-service.yaml`)
-- Create and apply the Redis leader service to expose the master service for follower replication and frontend access.
-- Use the file: `01-redis-deployment-service.yaml`
+- Create and apply a Redis leader deployment (single replica) and the Redis leader service to expose the leader for follower replication and frontend access.
+- Use the file: `01-redis-leader-deployment-service.yaml`
+- Notice that the leader and follower Deployments both carry `app: redis`, so each selector **also** matches on `role` and `tier`. Two Deployments with overlapping selectors would fight over each other's pods.
 
 Apply the file
 ```bash
@@ -54,7 +54,7 @@ kubectl get deploy,svc,pods
 
 #### Deploy the Frontend Application
 
-Create and apply the frontend deployment and service for the php app
+Create and apply the frontend ConfigMap, deployment and service for the php app. The ConfigMap `frontend-config` holds `GET_HOSTS_FROM=dns`, loaded into the container with `envFrom` (see chapter 09): the app then finds Redis through the Service DNS names `redis-leader` and `redis-follower`.
 
 Apply the file `03-frontend-deployment-service.yaml`
 ```bash
@@ -90,7 +90,6 @@ You can use labels to deploy multiple resources with one command. Run the follow
 ```bash
 kubectl delete deployment -l app=redis
 kubectl delete service -l app=redis
-kubectl delete deployment frontend
-kubectl delete service frontend
+kubectl delete -f 03-frontend-deployment-service.yaml
 ```
 

@@ -14,7 +14,7 @@ spec:
             - ssd            
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     imagePullPolicy: IfNotPresent
 #
 # Here we create a pod that should be placed on the node with the label disktype=ssd

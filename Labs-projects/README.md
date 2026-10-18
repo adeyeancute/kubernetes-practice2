@@ -5,7 +5,7 @@ Real-world capstone labs that tie multiple Kubernetes primitives together into a
 ## The labs
 
 ### `lab-1-deploy-guestbook-app`
-A classic guestbook: a PHP frontend backed by Redis (leader + follower). You practice: `Deployment` for stateless PHP, `StatefulSet` (or Deployment with a single replica) for Redis leader, `Service` for internal DNS, and `Service type=LoadBalancer` for exposing the frontend. Reinforces chapters 04 (deployment), 06 (service), and 09 (configmap).
+A classic guestbook: a PHP frontend backed by Redis (leader + follower). You practice: `Deployment` for the stateless PHP frontend and for the Redis leader (1 replica) and followers, non-overlapping label selectors, a `ConfigMap` loaded with `envFrom`, `Service` for internal DNS, and `Service type=LoadBalancer` for exposing the frontend. Reinforces chapters 04 (deployment), 06 (service), and 09 (configmap).
 
 ### `lab-2-deploy-wordpress-with-pvc`
 A WordPress site backed by MySQL, both persisting to `PersistentVolumeClaim` backed storage. You practice: `Secret` for the DB password, `PersistentVolumeClaim` for WordPress uploads and MySQL data, `Service` for both tiers. Reinforces chapters 10 (secrets), 13 (persistent-storage), 06 (service), 09 (configmap).

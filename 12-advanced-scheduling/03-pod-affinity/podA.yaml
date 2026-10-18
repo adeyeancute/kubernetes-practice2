@@ -8,7 +8,7 @@ metadata:
 spec:
   containers:
     - name: httpd
-      image: httpd
+      image: httpd:2.4
 #
 # Creating a simple pod. Which has apache configured inside it.  
 #

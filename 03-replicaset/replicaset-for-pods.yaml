@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: webserver
-          image: httpd
+          image: httpd:2.4
           
 # Create the replicatset 
 # kubectl create -f replicaset-for-pods.yaml

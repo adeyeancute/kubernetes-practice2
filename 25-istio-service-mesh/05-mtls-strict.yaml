@@ -1,0 +1,26 @@
+# Require mutual TLS for every workload in mesh-demo: plain-text clients outside the mesh are rejected
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: mesh-demo
+spec:
+  mtls:
+    mode: STRICT
+---
+# A namespace WITHOUT sidecar injection, to prove the point
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: no-mesh
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: outsider
+  namespace: no-mesh
+spec:
+  containers:
+  - name: curl
+    image: curlimages/curl:8.10.1
+    command: ["sleep", "infinity"]

@@ -9,7 +9,7 @@ metadata:
 spec:
   containers:
     - name: utrains-app
-      image: httpd
+      image: httpd:2.4
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

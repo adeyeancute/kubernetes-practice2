@@ -45,7 +45,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "800Mi"
@@ -63,7 +63,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "300Mi"
@@ -81,7 +81,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "800Mi"
@@ -131,7 +131,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "800Mi"
@@ -149,7 +149,7 @@ metadata:
 spec:
   containers:
   - name: nginx
-    image: nginx
+    image: nginx:1.27
     resources:
       limits:
         memory: "300Mi"
@@ -173,9 +173,53 @@ kubectl delete -f 03-test-quota.yaml
 kubectl delete -f 04-pods-quota-test.yaml
 ```
 
+## LimitRange
+
+A ResourceQuota caps the **total** for a namespace. A **LimitRange** works **per container** (or per pod / per PVC):
+- It sets **default** requests and limits for containers that do not specify any.
+- It enforces a **min** and **max** for each container.
+
+This matters with quotas: once a namespace has a CPU/memory ResourceQuota, every pod **must** declare requests and limits or it is rejected. A LimitRange with defaults fixes that automatically.
+
+**Example**: In the namespace `limits-demo`, default containers to 100m/128Mi requests and 300m/256Mi limits, and allow at most 1 CPU / 512Mi per container. The manifest is `05-limitrange-dev.yaml`
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-limits
+  namespace: limits-demo
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: 300m
+      memory: 256Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    max:
+      cpu: "1"
+      memory: 512Mi
+    min:
+      cpu: 50m
+      memory: 32Mi
+```
+```bash
+kubectl apply -f 05-limitrange-dev.yaml
+kubectl describe limitrange container-limits -n limits-demo
+```
+Now create two pods with `06-pods-limitrange.yaml`: `pod-defaults` sets no resources, `pod-too-big` asks for a 1Gi memory limit.
+```bash
+kubectl apply -f 06-pods-limitrange.yaml
+# pod-too-big is rejected: "maximum memory usage per Container is 512Mi, but limit is 1Gi"
+kubectl get pod pod-defaults -n limits-demo -o jsonpath='{.spec.containers[0].resources}'; echo
+# the defaults were injected: requests 100m/128Mi, limits 300m/256Mi
+```
+
 ## Cleanup
 
 ```bash
+kubectl delete ns limits-demo --ignore-not-found
 kubectl delete -f 02-pods-quota-dev.yaml --ignore-not-found
 kubectl delete -f 04-pods-quota-test.yaml --ignore-not-found
 kubectl delete -f 01-dev-quota.yaml --ignore-not-found

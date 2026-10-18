@@ -10,7 +10,7 @@ metadata: #--------------------------------------------------- Add data about th
 spec: #-------------------------------------------------------- Specifications of the pod
   containers: #------------------------------------------------ containers that will run in the pod
     - name: my-container  #----------------------------------- Name of the Main container inside the pod
-      image: nginx:latest  #---------------------------------- Docker image for the container
+      image: nginx:1.27  #---------------------------------- Docker image for the container
       ports:
         - containerPort: 80  #-------------------------------- Port the container will listen on
       volumeMounts:

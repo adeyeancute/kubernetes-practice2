@@ -9,7 +9,7 @@ spec:
     fsGroup: 2000
   containers:
   - name: secure-container
-    image: alpine
+    image: alpine:3.20
     command: ["/bin/sh", "-c", "sleep 3600"]
     securityContext:  # Container-level security context
       readOnlyRootFilesystem: true

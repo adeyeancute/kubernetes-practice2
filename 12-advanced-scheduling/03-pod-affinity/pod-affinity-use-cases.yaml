@@ -27,7 +27,7 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: redis-server
-        image: redis:3.2-alpine
+        image: redis:7.4-alpine
 ---
 # example Deployment for the web servers
 # The Pod affinity rule tells the scheduler to place each replica on a node that has a Pod with the label app=store
@@ -67,4 +67,4 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: web-app
-        image: nginx:1.16-alpine 
+        image: nginx:1.27-alpine 
