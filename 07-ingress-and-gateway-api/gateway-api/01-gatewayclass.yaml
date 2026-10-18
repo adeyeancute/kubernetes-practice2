@@ -1,0 +1,7 @@
+# GatewayClass: "which controller builds my gateways". Installed once by the platform team.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: alb
+spec:
+  controllerName: gateway.k8s.aws/alb   # the AWS Load Balancer Controller's ALB Gateway controller

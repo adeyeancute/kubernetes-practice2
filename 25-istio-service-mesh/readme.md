@@ -83,7 +83,7 @@ kubectl get pods -n istio-system
 Install the Gateway API CRDs (skip if you already did it in chapter 07):
 ```bash
 kubectl get crd gateways.gateway.networking.k8s.io || \
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.0/standard-install.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
 ```
 
 ### 2. Deploy two versions of an app inside the mesh

@@ -94,7 +94,7 @@ spec:
 ```
 
 ```bash
-kubectl create -f 01-my-configmap-pod1.yaml
+kubectl create -f 02-my-configmap-pod.yaml
 kubectl get pods
 ```
 Get into the pod and print all the environment variable
@@ -136,9 +136,8 @@ kubectl get cm
 kubectl get pods
 kubectl describe pod pod-configmap-volume
 
-#If you are not on a Linux server, the following commands might throw a No such file or directory error.
-#Just make sure you understand the concept.
-
+# Git Bash on Windows rewrites "/config" into "C:/Program Files/Git/config" (error: No such file or directory).
+# Fix: prefix the command with MSYS_NO_PATHCONV=1, or use PowerShell / the interactive shell below.
 kubectl exec -it pod-configmap-volume -- ls /config
 
 kubectl exec -it pod-configmap-volume -- cat /config/mydata
@@ -152,6 +151,14 @@ cat /config/mydata
 ```
 Exit to get out of the Pod.
 
+#### 3- Using command-line arguments
+
+A container command can use an environment variable with the `$(VAR_NAME)` syntax. The manifest `04-pod-configmap-arg.yaml` creates a ConfigMap `app-config` with `default_command: "date"`, loads it into the env var `STARTUP_COMMAND`, and runs `/bin/sh -c "$(STARTUP_COMMAND)"`. Change the ConfigMap, and the pod runs a different command without changing the image.
+```bash
+kubectl create -f 04-pod-configmap-arg.yaml
+kubectl get pod app-config-pod      # STATUS Completed: the command ran once
+kubectl logs app-config-pod         # prints the date
+```
 
 You can learn more on configmaps using the kubernetes official documentation
 

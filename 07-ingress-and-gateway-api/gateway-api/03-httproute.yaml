@@ -1,0 +1,53 @@
+# HTTPRoute: the routing rules, owned by the app team.
+# ExternalDNS reads "hostnames" and creates gateway.afriqhome.com -> ALB in Route53.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app-route
+  namespace: default
+spec:
+  parentRefs:
+    - name: my-gateway
+      sectionName: https           # attach to the HTTPS listener
+  hostnames:
+    - gateway.afriqhome.com        # replace with your own subdomain
+  rules:
+    # Header-based routing (not possible with a plain Ingress): "x-version: v2" always goes to app2
+    - matches:
+        - headers:
+            - name: x-version
+              value: v2
+      backendRefs:
+        - name: app2-service
+          port: 80
+    # Weighted traffic split (canary): 50% app1 (nginx) / 50% app2 (httpd)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: app1-service
+          port: 80
+          weight: 50
+        - name: app2-service
+          port: 80
+          weight: 50
+---
+# HTTP listener: redirect everything to HTTPS
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-to-https
+  namespace: default
+spec:
+  parentRefs:
+    - name: my-gateway
+      sectionName: http
+  hostnames:
+    - gateway.afriqhome.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

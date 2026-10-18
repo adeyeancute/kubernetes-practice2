@@ -115,6 +115,7 @@ spec:
 Create the pod and check that the secret is defined:
 ```bash
 kubectl create -f my-secret-pod-volume.yaml
+# Git Bash on Windows: prefix with MSYS_NO_PATHCONV=1 (otherwise /etc/config is rewritten to a Windows path)
 kubectl exec my-secret-pod-volume -- cat /etc/config/username
 kubectl exec my-secret-pod-volume -- cat /etc/config/password
 ```

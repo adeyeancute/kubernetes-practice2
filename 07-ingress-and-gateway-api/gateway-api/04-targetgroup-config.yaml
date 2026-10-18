@@ -1,0 +1,25 @@
+# By default the ALB Gateway registers NODES (instance targets), which only works with NodePort
+# services. Our services are ClusterIP, so tell the controller to register POD IPs instead
+# (same as the Ingress annotation alb.ingress.kubernetes.io/target-type: ip).
+# One TargetGroupConfiguration per Service, in the Service's namespace.
+apiVersion: gateway.k8s.aws/v1
+kind: TargetGroupConfiguration
+metadata:
+  name: app1-tg
+  namespace: default
+spec:
+  targetReference:
+    name: app1-service
+  defaultConfiguration:
+    targetType: ip
+---
+apiVersion: gateway.k8s.aws/v1
+kind: TargetGroupConfiguration
+metadata:
+  name: app2-tg
+  namespace: default
+spec:
+  targetReference:
+    name: app2-service
+  defaultConfiguration:
+    targetType: ip

@@ -1,0 +1,40 @@
+# Gateway: one ALB with an HTTP (80) and an HTTPS (443) listener.
+# ALB-specific settings (internet-facing, ACM certificate) live in a LoadBalancerConfiguration,
+# referenced from spec.infrastructure.parametersRef: no annotations needed.
+apiVersion: gateway.k8s.aws/v1
+kind: LoadBalancerConfiguration
+metadata:
+  name: public-alb
+  namespace: default
+spec:
+  scheme: internet-facing        # the default is internal (reachable only inside the VPC)
+  listenerConfigurations:
+    - protocolPort: HTTPS:443
+      # replace with the ARN of your ACM certificate (aws acm list-certificates)
+      defaultCertificate: <your-acm-certificate-arn>
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: my-gateway
+  namespace: default
+spec:
+  gatewayClassName: alb
+  infrastructure:
+    parametersRef:
+      group: gateway.k8s.aws
+      kind: LoadBalancerConfiguration
+      name: public-alb
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same               # only Routes from the same namespace can attach
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Same
