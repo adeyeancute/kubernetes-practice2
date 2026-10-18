@@ -1,14 +1,16 @@
-## Pod that will consume the PVC and will run because it is placed on the node where the volume is attached
+## Pod that uses the SAME PVC, forced onto a node in ANOTHER availability zone.
+## It never starts: an EBS volume lives in one AZ and can only attach to instances in that AZ
+## (error: InvalidVolume.ZoneMismatch).
 apiVersion: v1
 kind: Pod
 metadata:
   name: pod-ebs3
 spec:
-  nodeName: # add the nodeName of the first node here
+  nodeName: NODE_OTHER_ZONE   # replaced on the fly by the command in readme.md
   containers:
   - name: app
     image: busybox:1.36
-    command: [ "sh", "-c", "echo 'Hello world!' >> /data/test.txt && sleep 3600" ]
+    command: [ "sh", "-c", "echo 'Hello from pod-ebs3 (other zone)!' >> /data/test.txt && sleep 3600" ]
     volumeMounts:
     - mountPath: "/data"
       name: storage

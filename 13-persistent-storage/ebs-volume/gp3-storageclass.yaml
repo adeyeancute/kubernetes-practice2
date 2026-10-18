@@ -1,0 +1,19 @@
+# StorageClass for EBS gp3 volumes (cheaper and faster than gp2), made the cluster default.
+# Prereq: the aws-ebs-csi-driver add-on (see readme.md).
+# volumeBindingMode: WaitForFirstConsumer => the volume is created in the SAME AZ as the node
+# where the first pod using it is scheduled. Without it, the volume could land in an AZ where
+# the pod cannot run.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  type: gp3
+  encrypted: "true"
+  fsType: ext4

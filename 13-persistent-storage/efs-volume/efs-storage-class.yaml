@@ -5,7 +5,7 @@ metadata:
 provisioner: efs.csi.aws.com
 parameters:
   provisioningMode: efs-ap
-  fileSystemId: your-efs-filesystem-id
+  fileSystemId: your-efs-filesystem-id   # replaced on the fly by the command in readme.md
   directoryPerms: "700"
 #
 #
@@ -13,5 +13,5 @@ parameters:
 #
 # Apply the object in the cluster
 #
-# kubectl apply -f storageclass.yaml
+# sed "s/your-efs-filesystem-id/$EFS_ID/" efs-storage-class.yaml | kubectl apply -f -
 # kubectl get storageclass

@@ -22,6 +22,9 @@ Here the goal is to constraint the scheduler to place the pod on a specific node
 kubectl label nodes <node-name> key=value
 # Example
 kubectl label nodes node01 disktype=ssd
+# EKS: node names look like ip-192-168-x-y.ec2.internal. Store the first one in a variable:
+NODE1=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+kubectl label nodes $NODE1 disktype=ssd
 kubectl get nodes --show-labels
 kubectl get nodes --show-labels | grep ssd 
 ```
@@ -46,9 +49,9 @@ spec:
 Apply the pod in the cluster and verify where it has been placed. The pod should run on the node with the label `disktype=ssd`
 
 ```bash
-kubectl apply -f pod-node-selector.yaml
+kubectl apply -f 01-node-selector/pod-node-selector.yaml
 kubectl get pods -o wide
-kubectl delete -f pod-node-selector.yaml
+kubectl delete -f 01-node-selector/pod-node-selector.yaml
 ```
 
 You can also schedule a pod to one specific node via setting `nodeName`. 
@@ -70,9 +73,11 @@ spec:
 Apply the pod in the cluster and verify where it has been placed. The pod should run on the node with the name `node01`
 
 ```bash
-kubectl apply -f pod-node-name.yaml
+kubectl apply -f 01-node-selector/pod-node-name.yaml
+# EKS: the manifest says nodeName: node01, replace it with a real node name on the fly
+sed "s/node01/$NODE1/" 01-node-selector/pod-node-name.yaml | kubectl apply -f -
 kubectl get pods -o wide
-kubectl delete -f pod-node-name.yaml
+kubectl delete -f 01-node-selector/pod-node-name.yaml
 ```
 
 **Note:** When a there is no node selector specified in a pod, it can be placed on any node in the cluster. But when a pod has a node selector, it will remain pending if no node has the corresponding label.
@@ -121,9 +126,9 @@ spec:
 Apply and verify. The pod will prefer to be palced of the node with label `disktype=ssd`. But it can also be placed elsewhere.
 
 ```bash
-kubectl apply -f pod-node-affinity-preferred.yaml
+kubectl apply -f 02-node-affinity/pod-node-affinity-preferred.yaml
 kubectl get pods -o wide
-kubectl delete -f pod-node-affinity-preferred.yaml
+kubectl delete -f 02-node-affinity/pod-node-affinity-preferred.yaml
 ```
 
 2. Create the pod with the manifest `pod-node-affinity-required.yaml` that require to be placed on the node with the label `disktype=ssd`
@@ -151,15 +156,15 @@ spec:
 Apply and verify that the pod is placed on the node with label `disktype=ssd`
 
 ```bash
-kubectl apply -f pod-node-affinity-required.yaml
+kubectl apply -f 02-node-affinity/pod-node-affinity-required.yaml
 kubectl get pods -o wide
 # unlabel the node to see if the ignoredDuringExecution works well
-kubectl label node node01 disktype-
+kubectl label node node01 disktype-     # EKS: kubectl label node $NODE1 disktype-
 kubectl get pods
 # the pod should continue running
-kubectl delete -f pod-node-affinity-required.yaml
+kubectl delete -f 02-node-affinity/pod-node-affinity-required.yaml
 # relabel the node to continue practice
-kubectl label node node01 disktype=ssd
+kubectl label node node01 disktype=ssd  # EKS: kubectl label node $NODE1 disktype=ssd
 ```
 
 #### Notes: 
@@ -198,9 +203,9 @@ spec:
 Apply and verify, the pod **should not be placed** on the node with label `disktype=ssd`
 
 ```bash
-kubectl apply -f pod-node-anti-affinity.yaml
+kubectl apply -f 02-node-affinity/pod-node-anti-affinity.yaml
 kubectl get pods -o wide
-kubectl delete -f pod-node-anti-affinity.yaml
+kubectl delete -f 02-node-affinity/pod-node-anti-affinity.yaml
 ```
 
 
@@ -230,7 +235,7 @@ spec:
 ```
 Apply and verify the node where the pod is placed
 ```bash
-kubectl apply -f podA.yaml
+kubectl apply -f 03-pod-affinity/podA.yaml
 kubectl get pods -o wide
 ```
 2. Create the podB using the manifest `pod-affinity.yaml`
@@ -259,7 +264,7 @@ spec:
 ```
 Apply and verify the node where the pod is placed. It should be on the same node with podA.
 ```bash
-kubectl apply -f pod-affinity.yaml
+kubectl apply -f 03-pod-affinity/pod-affinity.yaml
 kubectl get pods -o wide
 ```
 
@@ -293,14 +298,14 @@ spec:
 ```
 Apply and verify the node where the pod is placed. It **should not be placed** on the same node with podA.
 ```bash
-kubectl apply -f pod-anti-affinity.yaml
+kubectl apply -f 03-pod-affinity/pod-anti-affinity.yaml
 kubectl get pods -o wide
 ```
 Delete the 3 pods
 ```bash
-kubectl delete -f pod-anti-affinity.yaml
-kubectl delete -f pod-affinity.yaml
-kubectl delete -f podA.yaml
+kubectl delete -f 03-pod-affinity/pod-anti-affinity.yaml
+kubectl delete -f 03-pod-affinity/pod-affinity.yaml
+kubectl delete -f 03-pod-affinity/podA.yaml
 ```
 
 Just like the node affinity, it comes with a soft and a hard type (`preferredDuringSchedulingIgnoredDuringExecution`, `requiredDuringSchedulingIgnoredDuringExecution`)
@@ -334,6 +339,15 @@ kubectl taint node <node-name> color=pink:NoSchedule
 kubectl taint node <node-name> color=yellow:NoSchedule
 ```
 **Note**: Replace <node-name> with the actual name of your node. **If you are working in a Killercoda playground, you can set the taint on the controlplane node.**
+
+**On EKS (3 nodes):** a pod that tolerates nothing can still run on any untainted node, so the "Pending" examples below only work if **every** node is tainted. Taint the first node pink and all the others yellow:
+```bash
+NODES=($(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'))
+kubectl taint node ${NODES[0]} color=pink:NoSchedule
+for n in "${NODES[@]:1}"; do kubectl taint node $n color=yellow:NoSchedule; done
+kubectl get nodes -o custom-columns=NODE:.metadata.name,TAINTS:.spec.taints
+```
+**Important:** remove the taints at the end (see below). While every node is tainted, no new pod without a matching toleration can be scheduled anywhere in the cluster.
 
 #### How to set tolerations for pods
 You specify a toleration for a pod in the `tolerations` field in the pod specifications. In this field, you use the **key, value, effect** but also `operator` parameter
@@ -372,7 +386,7 @@ spec:
 Apply the pod in the cluster and verify that the pod is placed on the node with the taint: `color=pink:NoSchedule`
 
 ```bash
-kubectl create -f pod-toleration-equal1.yaml
+kubectl create -f 04-taints-tolerations/pod-toleration-equal1.yaml
 kubectl get pods -o wide
 ```
 
@@ -401,7 +415,7 @@ spec:
 ```
 Apply the pod in the cluster and verify that the pod stays **Pending** because there is node node with that taint in the cluster.
 ```bash
-kubectl create -f pod-toleration-equal2.yaml
+kubectl create -f 04-taints-tolerations/pod-toleration-equal2.yaml
 kubectl get pods -o wide
 ```
 
@@ -430,7 +444,7 @@ spec:
 ```
 Apply the pod in the cluster and verify that the pod runs on any of the node that has a color set
 ```bash
-kubectl create -f pod-toleration-exists1.yaml
+kubectl create -f 04-taints-tolerations/pod-toleration-exists1.yaml
 kubectl get pods -o wide
 ```
 
@@ -459,7 +473,7 @@ spec:
 ```
 Apply the pod in the cluster and verify that the pod stays **Pending** because there is no taint key that satisfies the pod toleration.
 ```bash
-kubectl create -f pod-toleration-exists2.yaml
+kubectl create -f 04-taints-tolerations/pod-toleration-exists2.yaml
 kubectl get pods -o wide
 kubectl describe pod webserver4
 ```
@@ -541,7 +555,8 @@ kubectl delete -f 04-taints-tolerations/pod-toleration-equal2.yaml --ignore-not-
 kubectl delete -f 04-taints-tolerations/pod-toleration-exists1.yaml --ignore-not-found
 kubectl delete -f 04-taints-tolerations/pod-toleration-exists2.yaml --ignore-not-found
 
-# Remove any taints you added to your nodes during the lab, e.g.:
-# kubectl taint nodes <node-name> gpu=true:NoSchedule-
+# Remove the taints and labels you added to your nodes during the lab
+for n in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do kubectl taint nodes $n color- ; done
+kubectl label nodes --all disktype-
 ```
 

@@ -1,14 +1,16 @@
-## Pod that will consume the PVC but will fail to start due to conflict on the ebs volume
+## Pod that uses the SAME PVC, forced onto ANOTHER node in the SAME availability zone.
+## While pod-ebs is running it stays in ContainerCreating (EBS = ReadWriteOnce: one node at a time).
+## As soon as pod-ebs is deleted, the volume moves to this node and the pod starts.
 apiVersion: v1
 kind: Pod
 metadata:
   name: pod-ebs2
 spec:
-  nodeName: # add the nodeName here
+  nodeName: NODE_SAME_ZONE   # replaced on the fly by the command in readme.md
   containers:
   - name: app
     image: busybox:1.36
-    command: [ "sh", "-c", "echo 'Fail to run!' >> /data/test.txt && sleep 3600" ]
+    command: [ "sh", "-c", "echo 'Hello from pod-ebs2 (same zone)!' >> /data/test.txt && sleep 3600" ]
     volumeMounts:
     - mountPath: "/data"
       name: storage

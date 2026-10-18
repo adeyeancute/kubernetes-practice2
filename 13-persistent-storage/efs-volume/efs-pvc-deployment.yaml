@@ -17,7 +17,7 @@ kind: Deployment
 metadata:
   name: my-app
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: my-app
@@ -35,7 +35,7 @@ spec:
       volumes:
       - name: efs-volume
         persistentVolumeClaim:
-          claimName: efs-claim
+          claimName: efs-pvc
 ---
 ### service def
 apiVersion: v1
@@ -43,7 +43,7 @@ kind: Service
 metadata:
   name: my-app-service
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: my-app
   ports:
