@@ -28,8 +28,8 @@ If a value is set at both levels, container-level wins.
 | File | What it teaches |
 |---|---|
 | `privileged-pod.yaml` | A container running in privileged mode. This is the anti-pattern. Look at it to know what NOT to do. |
-| `pod-run-as-non-root.yaml` | Enforces `runAsNonRoot: true`. If the image tries to run as UID 0, the Pod fails to start. Test with an image that expects root and watch it fail. |
-| `pod-change-time.yaml` | Demonstrates a Pod trying to change the system clock. Without `CAP_SYS_TIME` capability it cannot. Use to prove capabilities matter. |
+| `pod-run-as-non-root.yaml` | Enforces `runAsNonRoot: true` and runs as UID 1000. Remove the `runAsUser` line and re-apply: alpine runs as root by default, so the Pod fails with `CreateContainerConfigError`. |
+| `pod-change-time.yaml` | Drops `CAP_SYS_TIME`: even as root, the container cannot change the clock. Use to prove capabilities matter. |
 | `pod-remove-chown.yaml` | Drops `CAP_CHOWN`. The container cannot change file ownership even as root. |
 | `secure-pod.yaml` | The hardened baseline: non-root, read-only root FS, drop ALL capabilities. Use this as the template for every new production Pod. |
 
@@ -46,19 +46,21 @@ kubectl delete -f privileged-pod.yaml
 
 # 2. Prevent root
 kubectl apply -f pod-run-as-non-root.yaml
-kubectl exec -it non-root-pod -- id
+kubectl exec -it pod-run-as-non-root -- id
 # Expect: uid=1000. Non-root.
 kubectl delete -f pod-run-as-non-root.yaml
 
 # 3. Drop capabilities and try to change the clock
 kubectl apply -f pod-change-time.yaml
-kubectl exec -it change-time-pod -- date --set="2020-01-01"
-# Expect: operation not permitted, because CAP_SYS_TIME was dropped.
+kubectl exec -it pod-change-time -- date --set="2020-01-01"
+# Expect: date: can't set date: Operation not permitted, because CAP_SYS_TIME was dropped.
+# WARNING: never ADD SYS_TIME to test this. The clock is shared with the node: a container
+# with SYS_TIME really changes the node time, and the node then breaks (Unauthorized errors).
 kubectl delete -f pod-change-time.yaml
 
 # 4. Drop CAP_CHOWN and try to chown a file
 kubectl apply -f pod-remove-chown.yaml
-kubectl exec -it chown-pod -- chown 65534 /tmp/testfile
+kubectl exec -it pod-remove-chown -- chown 65534 /tmp/testfile
 # Expect: operation not permitted.
 kubectl delete -f pod-remove-chown.yaml
 

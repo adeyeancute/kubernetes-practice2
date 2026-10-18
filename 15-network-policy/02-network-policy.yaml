@@ -26,3 +26,17 @@ spec:
       ports:
         - protocol: TCP
           port: 80
+    # Allow DNS lookups to CoreDNS. Without this rule pod-a cannot resolve "pod-b-svc"
+    # (any Egress policy blocks DNS too), and every call by service name fails.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

@@ -9,5 +9,7 @@ spec:
     command: ["/bin/sh", "-c", "sleep 3600"]
     securityContext:
       capabilities:
-        add:
+        # NEVER "add: [SYS_TIME]" here: containers share the node kernel clock, so a container
+        # with SYS_TIME can change the time of the whole NODE (and break its TLS certificates).
+        drop:
         - SYS_TIME

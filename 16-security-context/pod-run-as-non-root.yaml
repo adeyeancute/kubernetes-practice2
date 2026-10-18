@@ -8,4 +8,6 @@ spec:
     image: alpine:3.20
     command: ["/bin/sh", "-c", "sleep 3600"]
     securityContext:
-      runAsNonRoot: true
+      runAsNonRoot: true   # refuse to start the container as root (UID 0)
+      runAsUser: 1000      # alpine runs as root by default: without this line the pod fails
+                           # with CreateContainerConfigError ("image will run as root")

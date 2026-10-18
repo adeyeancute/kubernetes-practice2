@@ -92,17 +92,44 @@ kubectl get pods --as=system:serviceaccount:dev:dev-sa
 ```
 Expected result: You should have a **Forbidden error**.
 
-Test with other resources like services, deployments etc
-
-3. Recommendation
-
-In the company, to create access for a new user, a kubeconfig file like `config-template.yaml` will be generated and securely sent to the user. 
-
-The user will add it to his local kubeconfig file in `.kube/` and update the kubeconfig with the command before starting to interact with the cluster.
-
+Test with other resources like services, deployments etc. `kubectl auth can-i` answers yes / no without running the command:
 ```bash
-aws eks update-kubeconfig --region region-code --name cluster-name
+kubectl auth can-i create pods -n dev --as=system:serviceaccount:dev:dev-sa          # yes
+kubectl auth can-i create deployments -n dev --as=system:serviceaccount:dev:dev-sa   # no
+kubectl auth can-i --list -n dev --as=system:serviceaccount:dev:dev-sa               # everything it can do
 ```
+
+3. Give the access to someone: a kubeconfig file
+
+In a company, to give a person or a CI pipeline access limited to this Role, you generate a kubeconfig file like `config-template.yaml` and send it securely. Build one for `dev-sa`:
+```bash
+# a short-lived token for the service account (1 hour)
+TOKEN=$(kubectl create token dev-sa -n dev --duration=1h)
+SERVER=$(aws eks describe-cluster --name my-cluster --region us-east-1 --query cluster.endpoint --output text)
+CA=$(aws eks describe-cluster --name my-cluster --region us-east-1 --query cluster.certificateAuthority.data --output text)
+
+sed -e "s|{cluster-name}|my-cluster|g" -e "s|{cluster-ca}|$CA|" -e "s|{server-dns}|$SERVER|"     -e "s|{user-name}|dev-sa|g" -e "s|{secret-token}|$TOKEN|"     -e "s|{context-name}|dev-sa@my-cluster|g" -e "s|{name-namespace}|dev|"     config-template.yaml > dev-sa.kubeconfig
+```
+Use it exactly like the new team member would:
+```bash
+kubectl --kubeconfig dev-sa.kubeconfig get pods                    # works (namespace dev)
+kubectl --kubeconfig dev-sa.kubeconfig run test --image=nginx:1.27 # works: create pods is allowed
+kubectl --kubeconfig dev-sa.kubeconfig get deployments            # Forbidden
+kubectl --kubeconfig dev-sa.kubeconfig get pods -n default        # Forbidden
+kubectl --kubeconfig dev-sa.kubeconfig delete pod test
+rm dev-sa.kubeconfig    # it contains a valid token: never commit it
+```
+
+4. On EKS, for real people: access entries
+
+Service account tokens are good for pipelines and tools. **People** on EKS log in with their **IAM identity** (`aws eks update-kubeconfig` configures that). The cluster admin maps an IAM user or role to Kubernetes permissions with an **access entry**:
+```bash
+aws eks list-access-entries --cluster-name my-cluster --region us-east-1
+# give an IAM role read-only access to the dev namespace (example, replace the ARN):
+# aws eks create-access-entry --cluster-name my-cluster --principal-arn arn:aws:iam::<account-id>:role/dev-team
+# aws eks associate-access-policy --cluster-name my-cluster --principal-arn arn:aws:iam::<account-id>:role/dev-team #   --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy --access-scope type=namespace,namespaces=dev
+```
+The person then runs `aws eks update-kubeconfig --region us-east-1 --name my-cluster` with their own AWS credentials.
 
 
 **Note: The goal here is just for you to have an overview of why and how RBAC can be set in clusters to enhance security.**
