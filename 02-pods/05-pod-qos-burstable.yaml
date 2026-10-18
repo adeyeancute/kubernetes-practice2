@@ -4,7 +4,6 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: qos-burstable
-  namespace: qos-example
   labels:
    app: utrains
 spec:
@@ -23,19 +22,17 @@ spec:
 #
 # QoS = Burstable
 #
-# create namespace qos-example 
-# kubectl create namespace qos-example
 #
 # run the pod
 # kubectl create -f pod-qos-burstable.yaml
 #
 # check the pod
-# kubectl get pods -n qos-example
+# kubectl get pods
 #
 # get details about pod
-# kubectl describe pod/qos-burstable -n qos-example
+# kubectl describe pod/qos-burstable
 # 
 # Check the "QoS Class" value. 
 #
 # delete pod
-# kubectl delete pod/qos-burstable -n qos-example
+# kubectl delete pod/qos-burstable

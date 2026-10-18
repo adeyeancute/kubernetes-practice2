@@ -37,10 +37,10 @@ spec:
 
 To run it and test that the job what executed successfully:
 ```bash
-kubectl apply -f job.yaml
+kubectl apply -f simple-job.yaml
 kubectl get jobs
 kubectl get pods
-kubectl logs <pod-name>
+kubectl logs job/simple-job
 ```
 The logs should disply the message "**Hello from my first Job!**"
 **Note:** The job and the pod associated get deleted 50 seconds after successful execution.
@@ -61,12 +61,13 @@ spec:
           containers:
           - name: hello
             image: busybox:1.36
-            command: ["echo", "Hello from CronJob!"]
+            command: ["sh", "-c", "echo Hello from CronJob! $(date)"]
           restartPolicy: OnFailure
 ```
 
-To check it:
+To run and check it:
 ```bash
+kubectl apply -f simple-cronjob.yaml
 kubectl get cronjobs
 kubectl get jobs --watch
 ```

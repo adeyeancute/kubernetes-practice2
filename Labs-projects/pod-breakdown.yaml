@@ -13,6 +13,8 @@ spec: #-------------------------------------------------------- Specifications o
       image: nginx:1.27  #---------------------------------- Docker image for the container
       ports:
         - containerPort: 80  #-------------------------------- Port the container will listen on
+      securityContext:  #------------------------------------- Container-level security settings
+        allowPrivilegeEscalation: false  #-------------------- Disallow privilege escalation (no privilege higher than the parent's one)
       volumeMounts:
         - name: config-volume  #------------------------------ Mounts the ConfigMap as a volume
           mountPath: /etc/config  #--------------------------- Location where the config will be mounted
@@ -82,7 +84,8 @@ spec: #-------------------------------------------------------- Specifications o
     runAsUser: 1000  #---------------------------------------- Run as user with UID 1000
     runAsGroup: 3000  #--------------------------------------- Run as group with GID 3000
     fsGroup: 2000  #------------------------------------------ File system group for volumes
-    allowPrivilegeEscalation: false  #------------------------ Disallow privilege escalation (no privilege higher that the parent's one)
+    # NB: allowPrivilegeEscalation, privileged, capabilities and readOnlyRootFilesystem are
+    # CONTAINER-level fields: set them under containers[].securityContext (see my-container above)
   
   initContainers:  #------------------------------------------ Init containers are run before the main containers in the pod
     - name: init-container

@@ -33,7 +33,7 @@ spec:
         tier: frontend
     spec:
       containers:
-      - image: wordpress:6.2.1-apache
+      - image: wordpress:6.8-apache
         name: wordpress
         env:
         - name: WORDPRESS_DB_HOST
@@ -74,4 +74,29 @@ spec:
   selector:
     app: wordpress
     tier: frontend
-  type: LoadBalancer
+  type: ClusterIP
+---
+### HTTPS entry point: ALB + ACM certificate, DNS record created by ExternalDNS (chapter 07)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordpress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # no certificate-arn needed: the controller finds the ACM cert that matches the host
+spec:
+  ingressClassName: alb
+  rules:
+  - host: wordpress.afriqhome.com   # replace with your own subdomain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: wordpress
+            port:
+              number: 80

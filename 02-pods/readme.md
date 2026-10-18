@@ -38,7 +38,7 @@ kubectl describe pod utrains
 #### Using the command
 Create a pod called `app1` running the nginx image
 ```bash 
-kubectl run app1 --image=nginx
+kubectl run app1 --image=nginx:1.27
 kubectl get pod
 kubectl get pod -o wide 
 ```
@@ -51,7 +51,7 @@ kubectl get pod -o wide
 # you should get an error ErrImagePull or ImagePullBackOff
 kubectl describe pod app2
 kubectl edit pod app2
-# modify the image name to nginx, save and exit the edition page
+# modify the image name to nginx:1.27, save and exit the edition page
 kubectl get pods
 # The pod should now be Running
 ```
@@ -70,7 +70,7 @@ kubectl delete pod utrains
 
 4. Generate definition file for running a pod with nginx and write it into a file called `pod.yaml`
 ```bash
-kubectl run nginx2 --image=nginx --dry-run=client -o yaml > pod.yaml
+kubectl run nginx2 --image=nginx:1.27 --dry-run=client -o yaml > pod.yaml
 cat pod.yaml
 ```
 
@@ -98,7 +98,7 @@ spec:
 
 deploy and verify the pod
 ```bash
-kubectl create -f pod-namespace.yaml
+kubectl create -f 02-pod-namespace.yaml
 kubectl get pods 
 kubectl get pods -n dev
 ```
@@ -132,8 +132,8 @@ spec:
 deploy and verify the pod and the namespace
 ```bash
 kubectl create namespace dev
-kubectl create -f pod-namespace.yaml
-kubectl get pods -n dev
+kubectl create -f 03-pod-with-port.yaml
+kubectl get pods -n dev -o wide
 ```
 Delete the pod and the namespace.
 
@@ -252,25 +252,51 @@ kubectl delete pod qos-guaranteed
 A **Probe** is like a diagnostic that is periodically performed by the Kubelet on the containers of a Pod. The result of these checks can be Success, Failure or Unknown. There are 3 types of probes in K8s:
 - **LivenessProbe:** indicates whether the container is running or not. 
 
-Open the file `07-pod-liveness-probe.yaml` and try to understand the given example.
+Open the file `07-pod-liveness-probe.yaml`: the container creates `/tmp/healthy`, deletes it after 20 seconds, and the probe runs `cat /tmp/healthy` every 5 seconds. After 3 failures the kubelet kills and restarts the container.
+```bash
+kubectl apply -f 07-pod-liveness-probe.yaml
+kubectl get pod pod-liveness -w
+# after about 60 to 70 seconds RESTARTS goes to 1 (3 failed probes + 30s graceful shutdown), and keeps increasing
+# press CTRL+C to stop watching
+kubectl describe pod pod-liveness | grep -A10 Events
+# look for: "Liveness probe failed" and "will be restarted"
+```
 
 - **ReadinessProbe:** indicates whether the container is ready to respond to requests or not. 
 
-Open the file `08-pod-readiness-probe.yaml` and try to understand the given example.
+Open the file `08-pod-readiness-probe.yaml`: the container only creates `/tmp/ready` after 20 seconds. Until then the pod is **Running but not Ready** (`0/1`): a Service would not send it any traffic.
+```bash
+kubectl apply -f 08-pod-readiness-probe.yaml
+kubectl get pod pod-readiness -w
+# READY shows 0/1 for about 20 seconds, then 1/1. RESTARTS stays 0: a failed readiness probe never restarts the container
+```
 
 - **StartupProbe:** indicates when a container application has started. This is very useful for slow starting containers. 
 
-Open the file `09-pod-startup-probe.yaml` and try to understand the given example.
+Open the file `09-pod-startup-probe.yaml`: the startup probe allows up to 10 failures x 3 seconds = 30 seconds for the app to start. Liveness and readiness probes only begin after the startup probe succeeds.
+```bash
+kubectl apply -f 09-pod-startup-probe.yaml
+kubectl get pod pod-startup -w
+# READY becomes 1/1 after about 20 seconds
+```
 
 
 ### Pods priorities (optional)
 When creating pods, kubernetes also assign levels of priorities. By default, all the pods you create have the priority of 0 when no priority class is specified.
 We have 3 levels of priorities: Critical, higher priority, lower priority. To use priorities, we need to define PriorityClasses and assign them to pods
 
-Example: Check the files `10-pod-priotity-class.yaml` and `11-pod-with-priority.yaml`
+Example: Check the files `10-pod-priority-class.yaml` and `11-pod-with-priority.yaml`
 
-- The `10-pod-priotity-class.yaml` file creates two priority classes 
-- The `11-pod-with-priority.yaml` manifest creates two pods from each priority class
+- The `10-pod-priority-class.yaml` file creates two priority classes (`critical-pods` = 1000, `low-priority-pods` = 100)
+- The `11-pod-with-priority.yaml` manifest creates one pod with each priority class
+
+```bash
+kubectl apply -f 10-pod-priority-class.yaml
+kubectl apply -f 11-pod-with-priority.yaml
+kubectl get priorityclass
+kubectl get pods logging-pod batch-pod -o custom-columns=NAME:.metadata.name,PRIORITY:.spec.priority,CLASS:.spec.priorityClassName
+```
+When a node is full, the scheduler can **evict** lower-priority pods to make room for higher-priority ones (preemption).
 
 ## Cleanup
 

@@ -17,19 +17,21 @@ spec:
   # node selector to Restrict to Linux nodes (avoid scheduling on Windows)
   nodeSelector:
     kubernetes.io/os: linux
-  # Security context: Run as non-root user
+  # Pod-level security context: applies to every container (run as non-root user)
   securityContext:
     runAsNonRoot: true
     runAsUser: 1000
     fsGroup: 2000
-    allowPrivilegeEscalation: false
-    privileged: false
   # Graceful shutdown (30s)
   terminationGracePeriodSeconds: 30
   containers:
   - name: payment-service
     image: company-registry.example.com/payment-service:v1.2.3
     imagePullPolicy: IfNotPresent
+    # Container-level security context: these two fields only exist at container level
+    securityContext:
+      allowPrivilegeEscalation: false
+      privileged: false
     # Health checks
     livenessProbe:
       httpGet:

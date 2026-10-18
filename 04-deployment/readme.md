@@ -182,6 +182,30 @@ spec:
     type: Recreate
 ```
 
+**Compare the two strategies.** Open a second terminal and watch the pods while you update the image:
+```bash
+# terminal 2
+kubectl get pods -l app=nginx -w
+```
+```bash
+# terminal 1: RollingUpdate. Old and new pods overlap: never more than 1 pod down (maxUnavailable: 1)
+kubectl apply -f 02-deployment-rolling-update.yaml
+kubectl rollout status deployment/nginx-deployment
+kubectl set image deployment/nginx-deployment nginx=nginx:1.27
+kubectl rollout status deployment/nginx-deployment
+
+# terminal 1: Recreate. ALL old pods go to Terminating first, and only then the new pods are created
+kubectl apply -f 03-deployment-recreate.yaml
+kubectl rollout status deployment/nginx-deployment
+kubectl set image deployment/nginx-deployment nginx=nginx:1.26
+kubectl rollout status deployment/nginx-deployment
+```
+With Recreate there is a moment where **0 pods are Running**: that is the downtime. Use it only when two versions of the app must never run at the same time (for example a database schema change).
+
+```bash
+kubectl delete -f 03-deployment-recreate.yaml
+```
+
 ### Autoscaling a deployment (HPA)
 To enable autoscaling for a deployment, we need a specific object called **HPA (Horizontal Pod Autoscaler)** that will automatically scale the application up or down based on the load.
 
@@ -195,6 +219,8 @@ To enable autoscaling for a deployment, we need a specific object called **HPA (
 - Create the load and check how the HPA is working (it should scale up)
 - Reduce the load (the HPA should scale down the pods)
 - Clean up (optional)
+
+The full hands-on practice is in chapter 20 ([Autoscaling](../20-autoscaling-hpa-ca-karpenter-keda/readme.md)).
 
 ## Cleanup
 

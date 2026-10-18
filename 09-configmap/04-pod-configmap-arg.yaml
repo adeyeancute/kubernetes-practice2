@@ -18,7 +18,7 @@ spec:
       command: ["/bin/sh", "-c", "$(STARTUP_COMMAND)"]
       env:
        - name: STARTUP_COMMAND
-       - valueFrom:
+         valueFrom:
            configMapKeyRef:
              name: app-config
              key: default_command

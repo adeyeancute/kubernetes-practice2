@@ -3,8 +3,9 @@ kind: Service
 metadata:
   name: utrains-service
 spec:
+  type: ClusterIP
   selector:
-    app: utrains
+    name: utrains   # matches the label of utrains-pod (01-service-pod-def.yaml)
   ports:
     - protocol: TCP
       port: 8080

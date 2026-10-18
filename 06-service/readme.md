@@ -137,13 +137,24 @@ kind: Service
 metadata:
   name: utrains-service
 spec:
-  selector:
   type: ClusterIP
-    app: utrains
+  selector:
+    name: utrains   # matches the label of utrains-pod (01-service-pod-def.yaml)
   ports:
     - protocol: TCP
       port: 8080
       targetPort: 80
+```
+Practice: the 3 next types reuse the same pod `utrains-pod` and the same Service name, so each `apply` **changes the type** of the existing Service.
+```bash
+kubectl apply -f 01-service-pod-def.yaml
+kubectl delete service utrains-service        # we recreate it with the type-specific manifests
+kubectl apply -f 03-service-clusterIP.yaml
+kubectl get svc utrains-service               # TYPE ClusterIP, no EXTERNAL-IP
+kubectl get endpointslices -l kubernetes.io/service-name=utrains-service   # the pod IP behind the service
+
+# reach it from INSIDE the cluster with a temporary pod (DNS name = service name)
+kubectl run tmp --rm -i --restart=Never --image=busybox:1.36 -- wget -qO- -T5 utrains-service:8080
 ```
 
 #### **NodePort**
@@ -171,6 +182,13 @@ spec:
       # By default and for convenience, the Kubernetes control plane will allocate a port from a range (default: 30000-32767)
       nodePort: 30007
 ```
+```bash
+kubectl apply -f 04-service-nodeport.yaml
+kubectl get svc utrains-service               # PORT(S) shows 80:30007/TCP
+kubectl get nodes -o wide                     # EXTERNAL-IP of the nodes
+# from your laptop (open port 30007 in the node security group first):
+curl http://<node-external-ip>:30007
+```
 
 #### **Loadbalancer**
 - use case: Exposes service externally using a cloud provider's load balancer
@@ -195,6 +213,23 @@ spec:
       targetPort: 80
 ```
 
+```bash
+kubectl apply -f 05-service-loadbalancer.yaml
+kubectl get svc utrains-service -w            # wait until EXTERNAL-IP shows an AWS hostname, then CTRL+C
+kubectl describe svc utrains-service | grep -A5 Events   # "Ensured load balancer"
+# the DNS name takes 1 to 2 minutes to respond
+curl http://$(kubectl get svc utrains-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+```
+Notice that a LoadBalancer service is **also** a NodePort and a ClusterIP service: the cloud load balancer sends traffic to the node port.
+
+**Important:** delete LoadBalancer services when you are done. Each one is a real AWS load balancer that you pay for by the hour.
+```bash
+kubectl delete -f 05-service-loadbalancer.yaml
+kubectl delete -f 01-service-pod-def.yaml
+```
+
+**Note:** In chapter 07 you will see the better pattern for HTTP apps: one Ingress (one load balancer) for many services, with HTTPS and a real DNS name.
+
 Note: If the ``port`` value is different from ``80`` (default for the LoadBalancer service type), you need open the port in the nodes security group and also specify the port when accessing the service in your browser ``<LoadBalancer>:<port>``
 
 #### **ExternalName**
@@ -214,6 +249,14 @@ metadata:
 spec:
   type: ExternalName
   externalName: my.service.example.com
+```
+```bash
+kubectl create namespace dev
+kubectl apply -f 06-service-externalname.yaml
+# the cluster DNS answers with a CNAME to the external name
+kubectl run tmp -n dev --rm -i --restart=Never --image=busybox:1.36 -- nslookup utrains-service.dev.svc.cluster.local
+# look for: canonical name = my.service.example.com
+kubectl delete namespace dev
 ```
 
 ## Cleanup

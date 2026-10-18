@@ -3,7 +3,7 @@ kind: CronJob
 metadata:
   name: hello-cron
 spec:
-  schedule: "*/2 * * * *"   # every 2 minutes
+  schedule: "*/1 * * * *"   # every minute
   jobTemplate:
     spec:
       template:
@@ -11,5 +11,5 @@ spec:
           containers:
           - name: hello
             image: busybox:1.36
-            command: ["sh", "-c", "echo Hello at $(date)"]
+            command: ["sh", "-c", "echo Hello from CronJob! $(date)"]
           restartPolicy: OnFailure

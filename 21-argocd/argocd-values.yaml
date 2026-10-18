@@ -1,0 +1,24 @@
+# Helm values for the argo-cd chart: expose the UI at https://argocd.afriqhome.com
+# through an ALB (HTTPS with the ACM wildcard cert). ExternalDNS creates the DNS record.
+# Replace afriqhome.com with your own domain.
+global:
+  domain: argocd.afriqhome.com
+
+configs:
+  params:
+    server.insecure: true        # TLS ends at the ALB; ALB -> argocd-server is plain HTTP
+
+server:
+  ingress:
+    enabled: true
+    controller: aws
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+    aws:
+      serviceType: ClusterIP
+      backendProtocolVersion: GRPC

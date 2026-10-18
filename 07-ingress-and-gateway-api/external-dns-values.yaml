@@ -1,0 +1,21 @@
+# Helm values for ExternalDNS (chart: external-dns/external-dns)
+# Replace afriqhome.com with your own hosted zone domain.
+provider:
+  name: aws
+env:
+  - name: AWS_DEFAULT_REGION
+    value: us-east-1
+serviceAccount:
+  create: false                 # created by eksctl with the IAM role (IRSA)
+  name: external-dns
+domainFilters:
+  - afriqhome.com               # only touch this hosted zone
+policy: sync                    # create AND delete records when Ingress/Services are removed
+registry: txt                   # ownership TXT records: never touch records it did not create
+txtOwnerId: my-cluster          # unique per cluster
+txtPrefix: extdns-
+sources:
+  - service
+  - ingress
+  - gateway-httproute
+interval: 30s

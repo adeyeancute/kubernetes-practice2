@@ -1,5 +1,7 @@
 # Istio as a Gateway API implementation (same API as chapter 07, different controller).
 # Istio creates a gateway Deployment + a LoadBalancer Service for this Gateway automatically.
+# The annotations under "infrastructure" are copied onto that Service: the AWS Load Balancer
+# Controller (chapter 07) then builds an NLB that terminates HTTPS on 443 with the ACM certificate.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -7,6 +9,14 @@ metadata:
   namespace: mesh-demo
 spec:
   gatewayClassName: istio
+  infrastructure:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: external
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+      # replace with the ARN of your ACM certificate (aws acm list-certificates)
+      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: <your-acm-certificate-arn>
   listeners:
   - name: http
     port: 80
@@ -14,8 +24,16 @@ spec:
     allowedRoutes:
       namespaces:
         from: Same
+  # Port 443 is plain HTTP inside the cluster: the NLB already decrypted the TLS
+  - name: https-offloaded
+    port: 443
+    protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: Same
 ---
-# The same 90/10 canary, written with the portable Gateway API instead of a VirtualService
+# The same 90/10 canary, written with the portable Gateway API instead of a VirtualService.
+# ExternalDNS reads "hostnames" and creates mesh.afriqhome.com -> NLB in Route53.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -24,6 +42,8 @@ metadata:
 spec:
   parentRefs:
   - name: web-gateway
+  hostnames:
+  - mesh.afriqhome.com          # replace with your own subdomain
   rules:
   - backendRefs:
     - name: web-v1
