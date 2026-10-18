@@ -53,7 +53,8 @@ kubectl delete -f pod-run-as-non-root.yaml
 # 3. Drop capabilities and try to change the clock
 kubectl apply -f pod-change-time.yaml
 kubectl exec -it pod-change-time -- date --set="2020-01-01"
-# Expect: date: can't set date: Operation not permitted, because CAP_SYS_TIME was dropped.
+# Expect: "date: can't set date: Operation not permitted", because CAP_SYS_TIME was dropped.
+# (busybox still prints the date it parsed: run `kubectl exec pod-change-time -- date` to see the clock did not change)
 # WARNING: never ADD SYS_TIME to test this. The clock is shared with the node: a container
 # with SYS_TIME really changes the node time, and the node then breaks (Unauthorized errors).
 kubectl delete -f pod-change-time.yaml
