@@ -203,7 +203,12 @@ Without protection, an Application with an invalid name (folder `Bad_App`) makes
 ### 8.7 A removed app left its namespace or TLS secret
 Fixed: the chart owns the Namespace (Argo CD deletes it with the app; `CreateNamespace` would keep it), and cert-manager runs with `enableCertificateOwnerRef` (the Secret is deleted with its Certificate).
 
-### 8.8 Useful commands
+### 8.8 `terraform destroy` leaves the NLB, the DNS records and the VPC behind
+Symptoms: `[pre-destroy] ExternalDNS records left: 4`, `Unable to uninstall Helm release istio-ingress: context deadline exceeded`, `DependencyViolation` on the subnets and the internet gateway. The Pod Identity agent logs `Post "https://eks-auth.us-east-1.api.aws/...": i/o timeout`.
+Cause: Terraform deleted the NAT gateway in parallel with the cleanup: the nodes lost internet access, so the controllers could no longer call AWS (Pod Identity needs the EKS Auth endpoint). Fixed: the controllers and `terraform_data.pre_destroy` depend on `module.vpc`, so the network is destroyed last.
+If it ever happens again: `terraform apply` (recreates the network and the controllers), `helm uninstall` any release Helm lists as failed, then `terraform destroy`.
+
+### 8.9 Useful commands
 ```bash
 kubectl get applicationset apps -n argocd -o yaml | grep -A3 conditions
 kubectl get application <name>-<env> -n argocd -o jsonpath='{.status.conditions[*].message}'
@@ -220,7 +225,24 @@ terraform destroy
 ```
 `terraform destroy` first runs `scripts/pre-destroy.sh` (resource `terraform_data.pre_destroy`): it deletes the ApplicationSet, waits until Argo CD has deleted every app, deletes the Argo CD routes, and waits until ExternalDNS has removed every Route 53 record it owns. Only then are Argo CD, ExternalDNS, the load balancer controller (and its NLB), the cluster and the VPC deleted. This order matters: if the controller goes away first, the NLB and the DNS records are left behind.
 
-DESTROY_RESULTS
+Result of the test run (`Destroy complete! Resources: 92 destroyed.`):
+```
+[pre-destroy] deleting the ApplicationSet and the apps
+[pre-destroy] apps left: 0
+[pre-destroy] deleting the ArgoCD routes
+[pre-destroy] waiting for ExternalDNS to delete its Route 53 records (owner=platform)
+[pre-destroy] ExternalDNS records left: 0          <- after 26 seconds
+helm_release.istio_ingress: Destruction complete after 24s   <- the NLB is deleted here
+module.vpc.aws_nat_gateway.this[0]: Destruction complete ...   <- the network goes last
+```
+Afterwards: no EKS cluster, load balancer, VPC, Elastic IP, instance, EBS volume, IAM role/policy or log group left; the Route 53 zone is back to its original records. The KMS key of the cluster is in `PendingDeletion` for 30 days (standard AWS behaviour, no cost).
+
+Check yourself:
+```bash
+aws eks list-clusters
+aws elbv2 describe-load-balancers --query "LoadBalancers[].LoadBalancerName"
+aws route53 list-resource-record-sets --hosted-zone-id <zone-id> --query "ResourceRecordSets[].Name"
+```
 
 ## 10. Costs (us-east-1, on-demand, approximate)
 

@@ -41,7 +41,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     enableServiceMutatorWebhook = false
   })]
 
-  depends_on = [module.aws_lb_controller_pod_identity, helm_release.gateway_api_crds]
+  depends_on = [module.aws_lb_controller_pod_identity, helm_release.gateway_api_crds, module.vpc]
 }
 
 # --- cert-manager: Let's Encrypt certificates (DNS-01 in Route 53) for every app ---
@@ -61,7 +61,7 @@ resource "helm_release" "cert_manager" {
     enableCertificateOwnerRef = true
   })]
 
-  depends_on = [module.cert_manager_pod_identity, module.eks]
+  depends_on = [module.cert_manager_pod_identity, module.eks, module.vpc]
 }
 
 # --- ExternalDNS: one Route 53 record per HTTPRoute hostname ---
@@ -87,7 +87,7 @@ resource "helm_release" "external_dns" {
     interval       = "30s"
   })]
 
-  depends_on = [module.external_dns_pod_identity, helm_release.gateway_api_crds]
+  depends_on = [module.external_dns_pod_identity, helm_release.gateway_api_crds, module.vpc]
 }
 
 # --- Istio (sidecar mode): base CRDs, control plane, shared ingress gateway ---
@@ -147,7 +147,7 @@ resource "helm_release" "istio_ingress" {
     }
   })]
 
-  depends_on = [helm_release.istiod, helm_release.aws_load_balancer_controller]
+  depends_on = [helm_release.istiod, helm_release.aws_load_balancer_controller, module.vpc]
 }
 
 data "kubernetes_service_v1" "istio_ingress" {
@@ -175,7 +175,7 @@ resource "helm_release" "argo_cd" {
     }
   })]
 
-  depends_on = [module.eks]
+  depends_on = [module.eks, module.vpc]
 }
 
 # --- Platform configuration (needs the CRDs of all the components above) ---
@@ -233,5 +233,8 @@ resource "terraform_data" "pre_destroy" {
     command     = "bash '${self.input.script}' '${self.input.cluster}' '${self.input.region}' '${self.input.zone_id}' '${self.input.owner}'"
   }
 
-  depends_on = [helm_release.platform_config]
+  # module.vpc: the NAT gateway and the routes must outlive the cleanup. Without it, terraform deletes
+  # the NAT gateway in parallel: the controllers lose AWS access (Pod Identity needs the EKS Auth
+  # endpoint), the NLB and the DNS records are never deleted, and the VPC cannot be destroyed.
+  depends_on = [helm_release.platform_config, module.vpc]
 }
