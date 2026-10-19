@@ -98,8 +98,13 @@ The manifest `01-namespace-and-apps.yaml` creates:
 kubectl apply -f 01-namespace-and-apps.yaml
 kubectl get pods -n mesh-demo
 # READY shows 2/2: your container + the injected istio-proxy (Envoy) sidecar
-kubectl get pod -n mesh-demo -l app=web -o jsonpath='{.items[0].spec.containers[*].name}'; echo
-# expect: web istio-proxy
+kubectl get pod -n mesh-demo -l app=web -o jsonpath='{.items[0].spec.initContainers[*].name}'; echo
+# expect: istio-init istio-proxy
+```
+Since Kubernetes 1.29, Istio injects `istio-proxy` as a **native sidecar**: an init container with `restartPolicy: Always`, which starts **before** your app and keeps running next to it. That is why it is listed under `initContainers`, not `containers`. (`istio-init` sets up the iptables rules that redirect the pod traffic to Envoy, then exits.)
+```bash
+kubectl get pod -n mesh-demo -l app=web -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].restartPolicy}'; echo
+# Always
 ```
 
 Send 20 requests. With no rules, the Service spreads them roughly 50/50:
@@ -182,7 +187,7 @@ mTLS gives every pod a cryptographic identity based on its **service account**: 
 ```bash
 kubectl apply -f 06-authorization-policy.yaml
 
-# GET from client: allowed
+# GET from client: allowed (wait ~10 seconds after apply: the policy is pushed to every sidecar)
 kubectl exec -n mesh-demo deploy/client -- curl -s web
 
 # POST from client: denied by the policy
@@ -195,23 +200,27 @@ Once a workload has an `ALLOW` policy, anything that does not match a rule is de
 
 Expose the app to the internet with a Gateway API `Gateway` managed by Istio. Istio sees the `Gateway`, then creates a gateway Deployment and a `LoadBalancer` Service for it (on EKS: an AWS load balancer).
 
+**Prerequisites (chapter 07):** the AWS Load Balancer Controller (it builds the NLB from the annotations under `spec.infrastructure`), ExternalDNS (it creates `mesh.afriqhome.com` from the HTTPRoute `hostnames`) and the ACM wildcard certificate. Replace `afriqhome.com` with your domain in the file.
+
 `07-gateway-api-ingress.yaml` creates the `Gateway`, an `HTTPRoute` with the same 90/10 split, and one Service per version (an `HTTPRoute` splits between **Services**, a `VirtualService` between **subsets**).
 ```bash
-kubectl apply -f 07-gateway-api-ingress.yaml
+CERT_ARN=$(aws acm list-certificates --region us-east-1 --query "CertificateSummaryList[?DomainName=='*.afriqhome.com'].CertificateArn" --output text)
+sed "s|<your-acm-certificate-arn>|$CERT_ARN|" 07-gateway-api-ingress.yaml | kubectl apply -f -
 kubectl get gateway -n mesh-demo
 # wait until PROGRAMMED is True and ADDRESS shows a hostname (1 to 3 minutes)
 kubectl wait --for=condition=Programmed gateway/web-gateway -n mesh-demo --timeout=300s
 
-GW=$(kubectl get gateway web-gateway -n mesh-demo -o jsonpath='{.status.addresses[0].value}')
-echo $GW
-# the AWS DNS name can take 1 to 2 more minutes to resolve
-for i in $(seq 1 20); do curl -s http://$GW/; done | sort | uniq -c
+kubectl logs -n external-dns deploy/external-dns | grep mesh.afriqhome.com
+# wait for "CREATE mesh.afriqhome.com", then 1 to 3 minutes (DNS + the NLB becoming active)
+for i in $(seq 1 20); do curl -s https://mesh.afriqhome.com/; echo; done | sort | uniq -c
+# HTTPS: the NLB decrypts with the ACM certificate (*.afriqhome.com) and forwards plain HTTP to the gateway
 ```
-Why does this work through the AuthorizationPolicy from step 6? It does not: requests through the gateway come from the gateway's own identity, which is not allowed. You will get `RBAC: access denied`. Allow it by adding the gateway's service account (`web-gateway-istio`) as a second principal:
+Does this work with the AuthorizationPolicy from step 6? No: requests through the gateway come from the gateway's own identity (the ServiceAccount `web-gateway-istio`), which is not allowed. You get `RBAC: access denied` (HTTP 403). Allow it by adding the gateway's service account (`web-gateway-istio`) as a second principal:
 ```bash
 kubectl patch authorizationpolicy web-allow-client -n mesh-demo --type=json \
   -p='[{"op":"add","path":"/spec/rules/0/from/0/source/principals/-","value":"cluster.local/ns/mesh-demo/sa/web-gateway-istio"}]'
-for i in $(seq 1 20); do curl -s http://$GW/; done | sort | uniq -c
+for i in $(seq 1 20); do curl -s https://mesh.afriqhome.com/; echo; done | sort | uniq -c
+# about 90% "hello from v1", 10% "hello from v2"
 ```
 
 ### 8. (Optional) See the mesh: Kiali
