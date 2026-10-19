@@ -1,6 +1,6 @@
-# One ArgoCD Application per app request file in {{ .Values.gitops.appsPath }}/*.yaml
-# The file gives name + env (+ optional image, port, replicas...). Everything else is derived
-# by the chart in {{ .Values.gitops.chartPath }}.
+# One ArgoCD Application per app request file {{ .Values.gitops.appsPath }}/<name>/<env>.yaml
+#   <name> = the folder name, <env> = the file name without .yaml (they override the file content)
+#   the file gives the image, port, replicas...; the chart {{ .Values.gitops.chartPath }} derives the rest.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -14,10 +14,12 @@ spec:
         repoURL: {{ .Values.gitops.repoURL }}
         revision: {{ .Values.gitops.revision }}
         files:
-          - path: "{{ .Values.gitops.appsPath }}/*.yaml"
+          - path: "{{ .Values.gitops.appsPath }}/*/*.yaml"
   template:
     metadata:
-      name: '{{`{{ .name }}-{{ .env }}`}}'
+      # Application / namespace names are sanitized so that ONE badly named folder can never block
+      # the whole ApplicationSet. The chart still gets the raw name and fails only that app, with a clear message.
+      name: '{{`{{ regexReplaceAll "[^a-z0-9-]" (lower .path.basename) "-" }}-{{ regexReplaceAll "[^a-z0-9-]" (lower (trimSuffix ".yaml" .path.filename)) "-" }}`}}'
       labels:
         app.kubernetes.io/part-of: apps
       finalizers:
@@ -29,7 +31,7 @@ spec:
         targetRevision: {{ .Values.gitops.revision }}
         path: {{ .Values.gitops.chartPath }}
         helm:
-          releaseName: '{{`{{ .name }}`}}'
+          releaseName: '{{`{{ regexReplaceAll "[^a-z0-9-]" (lower .path.basename) "-" }}`}}'
           values: |
             platform:
               domain: {{ .Values.domain }}
@@ -38,17 +40,13 @@ spec:
                 namespace: {{ .Values.ingress.namespace }}
                 serviceDNS: {{ .Values.ingress.serviceDNS }}
                 lbHostname: {{ .Values.ingress.lbHostname }}
-            app: {{`{{ toJson (omit . "path") }}`}}
+            app: {{`{{ toJson (merge (dict "name" .path.basename "env" (trimSuffix ".yaml" .path.filename)) (omit . "path")) }}`}}
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{`{{ .name }}-{{ .env }}`}}'
+        namespace: '{{`{{ regexReplaceAll "[^a-z0-9-]" (lower .path.basename) "-" }}-{{ regexReplaceAll "[^a-z0-9-]" (lower (trimSuffix ".yaml" .path.filename)) "-" }}`}}'
       syncPolicy:
         automated:
           prune: true
           selfHeal: true
-        syncOptions:
-          - CreateNamespace=true
-        managedNamespaceMetadata:
-          labels:
-            istio-injection: enabled          # every app pod gets an Envoy sidecar (mTLS)
-            app.kubernetes.io/part-of: apps
+        # no CreateNamespace: the chart creates the Namespace (with istio-injection), so Argo CD
+        # also deletes it when the app is removed

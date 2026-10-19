@@ -49,9 +49,9 @@ variable "node_max_size" {
 }
 
 variable "gitops_repo_url" {
-  description = "Git repository ArgoCD watches for app requests (eks-full-infra/apps/*.yaml)"
+  description = "GitOps repository ArgoCD watches: app requests in apps/<name>/<env>.yaml, chart in app-template/"
   type        = string
-  default     = "https://github.com/utrains/kubernetes-practice2.git"
+  default     = "https://github.com/utrains/platform-gitops.git"
 }
 
 variable "gitops_revision" {

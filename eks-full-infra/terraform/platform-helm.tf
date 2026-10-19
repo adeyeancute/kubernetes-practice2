@@ -57,6 +57,8 @@ resource "helm_release" "cert_manager" {
   values = [yamlencode({
     crds           = { enabled = true }
     serviceAccount = { name = "cert-manager" }
+    # delete the TLS Secret when its Certificate is deleted (removed apps leave nothing behind)
+    enableCertificateOwnerRef = true
   })]
 
   depends_on = [module.cert_manager_pod_identity, module.eks]
@@ -201,8 +203,8 @@ resource "helm_release" "platform_config" {
     gitops = {
       repoURL   = var.gitops_repo_url
       revision  = var.gitops_revision
-      appsPath  = "eks-full-infra/apps"
-      chartPath = "eks-full-infra/app-template"
+      appsPath  = "apps"
+      chartPath = "app-template"
     }
   })]
 

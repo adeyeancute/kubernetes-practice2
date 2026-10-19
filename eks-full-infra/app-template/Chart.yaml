@@ -1,7 +1,0 @@
-apiVersion: v2
-name: app-template
-description: >
-  Platform app template. The app team gives a name and an environment; the template derives the
-  namespace, Deployment, Service, TLS certificate, Gateway listener, HTTPRoute and public subdomain.
-type: application
-version: 1.0.0

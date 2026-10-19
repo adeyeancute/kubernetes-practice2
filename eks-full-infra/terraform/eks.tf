@@ -35,6 +35,32 @@ module "eks" {
     }
   }
 
+  # The EKS control plane calls Istio's webhooks (sidecar injection, config validation) on the
+  # istiod pods, port 15017. The module only opens the common webhook ports by default: without
+  # this rule every pod creation in an injected namespace fails with "failed calling webhook
+  # object.sidecar-injector.istio.io ... context deadline exceeded".
+  node_security_group_additional_rules = {
+    istio_webhook = {
+      description                   = "EKS control plane to istiod webhooks"
+      protocol                      = "tcp"
+      from_port                     = 15017
+      to_port                       = 15017
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
+    # Pod-to-pod traffic between nodes on ALL ports. By default the module only allows node-to-node
+    # traffic on 1025-65535: an app listening on port 80 (nginx, ...) is then only reachable from
+    # pods on the SAME node, and requests through the ingress fail about half of the time.
+    nodes_all_traffic = {
+      description = "Node to node, all ports (pod to pod)"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "ingress"
+      self        = true
+    }
+  }
+
   eks_managed_node_groups = {
     default = {
       instance_types = var.node_instance_types

@@ -4,8 +4,8 @@ cluster_name       = "platform"
 kubernetes_version = "1.36"
 domain             = "afriqhome.com" # an existing public Route 53 hosted zone
 
-# Where ArgoCD reads the app requests (folder eks-full-infra/apps/)
-gitops_repo_url = "https://github.com/utrains/kubernetes-practice2.git"
+# GitOps repo: app requests in apps/<name>/<env>.yaml, chart in app-template/
+gitops_repo_url = "https://github.com/utrains/platform-gitops.git"
 gitops_revision = "main"
 
 # letsencrypt_email  = "platform-team@example.com"

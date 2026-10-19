@@ -14,5 +14,5 @@ argocd:
 gitops:
   repoURL: ""
   revision: main
-  appsPath: eks-full-infra/apps
-  chartPath: eks-full-infra/app-template
+  appsPath: apps
+  chartPath: app-template
