@@ -42,34 +42,9 @@ An Operator is the only realistic way to package "day-2 ops knowledge" (failover
 
 cert-manager is the canonical "first Operator everyone installs." We will install it, define a self-signed `Issuer`, request a `Certificate`, and watch cert-manager produce the backing Secret automatically.
 
-> **TODO — install verification needed**
->
-> The official cert-manager install pages (`https://cert-manager.io/docs/installation/kubectl/` and `https://cert-manager.io/docs/installation/helm/`) were **not retrievable** during this audit run (every request timed out). The install commands below use the **Helm install method, which is the path cert-manager's docs have officially recommended for several years** — but the **exact current version** could not be confirmed against the upstream release notes during this audit.
->
-> Before running this in production, verify the current cert-manager version (the previous chapter pinned `v1.15.3`, which may now be out of date) and any updated Helm install flags at:
->
-> - https://cert-manager.io/docs/installation/helm/
-> - https://cert-manager.io/docs/installation/kubectl/
-> - https://github.com/cert-manager/cert-manager/releases
->
-> If the upstream version has moved, update `--version` in the Helm command below.
-
 ### Prerequisites
 
-- An EKS cluster:
-
-```bash
-eksctl create cluster --name dev-cluster --region us-east-1 \
-  --nodegroup-name dev-nodes --node-type t3.small \
-  --nodes 2 --nodes-min 1 --nodes-max 2
-```
-
-- kubeconfig pointed at it:
-
-```bash
-aws eks update-kubeconfig --region us-east-1 --name dev-cluster
-```
-
+- The EKS cluster `my-cluster` from chapter 00 (any cluster works: this chapter needs no AWS add-on).
 - `kubectl` and `helm` installed locally.
 
 ### 1. Install cert-manager via Helm (officially recommended method)
@@ -80,15 +55,16 @@ cert-manager's documentation has, for several release cycles, recommended **Helm
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
 
-# Pin to a specific version. See the TODO above to verify the current stable tag.
+# Pin to a specific version (latest: https://github.com/cert-manager/cert-manager/releases)
 helm install cert-manager jetstack/cert-manager \
   --namespace cert-manager --create-namespace \
-  --version v1.15.3 \
-  --set crds.enabled=true
+  --version v1.21.2 \
+  --set crds.enabled=true \
+  --wait
 ```
 
 > Notes on the flags:
-> - `--set crds.enabled=true` installs the cert-manager CRDs as part of the chart. In older versions this flag was `--set installCRDs=true`; the new name is `crds.enabled`. **TODO**: confirm the spelling against the chart README for the version you pin.
+> - `--set crds.enabled=true` installs the cert-manager CRDs as part of the chart. In older versions (before 1.15) this flag was `--set installCRDs=true`; the current name is `crds.enabled`.
 > - You can alternatively install CRDs separately with `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/<VERSION>/cert-manager.crds.yaml` and then install the chart with `--set crds.enabled=false`.
 
 ### 2. Verify
@@ -144,6 +120,16 @@ spec:
   language: "en"
 ```
 
+It is in `greeting-instance.yaml`, together with a second Greeting that has no `message`:
+```bash
+kubectl apply -f greeting-instance.yaml
+# greeting.demo.utrains.io/hello-world created
+# The Greeting "no-message" is invalid: spec.message: Required value   <- the CRD schema is enforced
+kubectl get greetings
+kubectl get gr                    # the short name from the CRD
+kubectl get gr hello-world -o yaml
+```
+
 But **nothing happens** when you apply it — because we never wrote a controller. The object just sits in etcd. That's the point: **a CRD without an Operator is just a schema**.
 
 ## How to recognize an Operator in the wild
@@ -169,4 +155,4 @@ chmod +x cleanup.sh
 ./cleanup.sh
 ```
 
-This removes the demo Certificate, the ClusterIssuer, the `greetings` CRD, and uninstalls cert-manager. If you installed via Helm, the script should run `helm uninstall cert-manager -n cert-manager && kubectl delete namespace cert-manager` instead of the kubectl-based uninstall in the v1.15 manifest.
+This removes the demo Greeting and Certificate, the ClusterIssuer, the `greetings` CRD, and uninstalls cert-manager (Helm release, namespace and CRDs).

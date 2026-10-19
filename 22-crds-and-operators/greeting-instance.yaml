@@ -1,0 +1,16 @@
+# An object of our custom kind "Greeting" (needs custom-crd-greeting.yaml applied first)
+apiVersion: demo.utrains.io/v1
+kind: Greeting
+metadata:
+  name: hello-world
+spec:
+  message: "Hello, class!"
+  language: "en"
+---
+# Invalid on purpose: "message" is required by the CRD schema, so the API server rejects it
+apiVersion: demo.utrains.io/v1
+kind: Greeting
+metadata:
+  name: no-message
+spec:
+  language: "fr"

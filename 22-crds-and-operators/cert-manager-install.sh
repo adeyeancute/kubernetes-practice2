@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Install cert-manager via the official manifest.
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
-# Wait for pods.
-kubectl -n cert-manager wait --for=condition=Ready pod --all --timeout=120s
+# Install cert-manager with Helm (the method used in readme.md).
+helm repo add jetstack https://charts.jetstack.io
+helm repo update jetstack
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager --create-namespace \
+  --version v1.21.2 \
+  --set crds.enabled=true \
+  --wait
+kubectl get pods -n cert-manager
