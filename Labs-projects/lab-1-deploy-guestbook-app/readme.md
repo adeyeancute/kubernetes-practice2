@@ -64,10 +64,15 @@ kubectl get deploy,svc,pods
 
 #### Test the Deployment
 
-- **If your cluster is in EKS with Loadbalancer service**
-Use the Loadbalancer DNS name under the **EXTERNAL-IP** column: http://<Lb-dns> to access the app in the browser. Remember to verify that the corresponding port is open in your node security group if you get an error.
+The frontend is exposed by the Ingress `frontend` at **https://guestbook.afriqhome.com** (ALB + ACM certificate + DNS record created by ExternalDNS: prerequisites from chapter 07; replace the domain with yours in `03-frontend-deployment-service.yaml`).
+```bash
+kubectl get ingress frontend
+kubectl logs -n external-dns deploy/external-dns | grep guestbook
+# wait for "CREATE guestbook.afriqhome.com", then 1 to 3 minutes
+```
+Open https://guestbook.afriqhome.com, type a message and click Submit.
 
-**Note: Remember to make sure the load balancer is deleted when destroying your cluster after practice.**
+**Note: Remember to delete the Ingress (it is a real ALB) when you are done: see Clean up.**
 
 
 #### Scale the frontend deployment
@@ -77,7 +82,15 @@ kubectl get pods
 kubectl scale deployment frontend --replicas=1
 kubectl get pods
 ```
-**Optional exercice:** Verify replication by checking if writes to the master appear in the follower.
+**Exercise:** verify replication. Write a message in the web page, then read the Redis key `guestbook` on the leader and on a follower: both return the same value.
+```bash
+LEADER=$(kubectl get pod -l role=leader -o name)
+FOLLOWER=$(kubectl get pod -l role=follower -o name | head -1)
+kubectl exec $LEADER -- redis-cli get guestbook
+kubectl exec $FOLLOWER -- redis-cli get guestbook
+kubectl exec $FOLLOWER -- redis-cli info replication | grep -E "role|master_host|master_link_status"
+# role:slave  master_host:redis-leader  master_link_status:up
+```
 
 ### Expected Outcome
 By the end of this lab, you will have a functional Redis replication setup with a frontend interacting with it. This setup is commonly used to improve scalability and performance in real-world applications.

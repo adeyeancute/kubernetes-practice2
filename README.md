@@ -104,7 +104,7 @@ In each folder, you will find a readme file to help you understand the concept a
 
 ## Chapter index
 
-**25 numbered chapters** that walk from "what is a pod" through "GitOps, custom operators, broken-Pod triage, and EKS-specific add-ons." Click any chapter name to jump to its walkthrough.
+**26 numbered chapters** that walk from "what is a pod" through "GitOps, custom operators, broken-Pod triage, EKS-specific add-ons, and a service mesh." Click any chapter name to jump to its walkthrough.
 
 | # | Chapter | What you will practice |
 |---|---|---|
@@ -133,6 +133,7 @@ In each folder, you will find a readme file to help you understand the concept a
 | 22 | [CRDs + Operators](./22-crds-and-operators/readme.md) | Install cert-manager (a real-world Operator) and use its CRDs (Issuer, Certificate) to auto-provision TLS certs. Recognize the CRD + Operator pattern that every serious K8s tool ships as. |
 | 23 | [Troubleshooting: broken Pods](./23-troubleshooting-broken-pods/readme.md) | Diagnose 5 pre-broken Pod manifests using the `describe → events → logs → exec` playbook. Covers ImagePullBackOff, CreateContainerConfigError, CrashLoopBackOff, OOMKilled, and the Service-selector-mismatch trap. |
 | 24 | [EKS add-ons](./24-eks-addons/readme.md) | AWS-native practice: IRSA + Pod Identity for Pod IAM, AWS Load Balancer Controller for real ALBs, EBS CSI for block storage, EFS CSI for shared filesystems, Fargate for serverless Pods. |
+| 25 | [Istio service mesh](./25-istio-service-mesh/readme.md) | Add an Envoy sidecar to every Pod without changing the app. Canary releases by percentage and by header, fault injection, mutual TLS, service-to-service authorization, and Istio as a Gateway API ingress (`mesh.afriqhome.com`). |
 | — | [Labs-projects](./Labs-projects/README.md) | Capstone labs that combine many concepts into one end-to-end app: PHP + Redis Guestbook, WordPress + MySQL with persistent volumes. |
 
 ## Cohort week mapping
@@ -142,4 +143,4 @@ This repo is sequenced to match the DevOps program's Kubernetes weeks.
 - **Week 20 (K8s Foundations)** - chapters **00-10** (cluster setup -> secrets). Focus: install, basic objects, services + ingress, config + secrets.
 - **Week 21 (EKS Migration + K8s Production prep)** - chapters **11-17** (daemonset -> resource-quota). Focus: scheduling, storage, RBAC, network policy, security context, quotas.
 - **Week 22 (K8s Production + GitOps)** - chapters **18-22** (maintenance -> CRDs/operators). Focus: cluster ops, Helm, autoscaling, ArgoCD, CRDs.
-- **Cross-week production practice** - chapters **23-24**. Broken-Pod triage playbook (23) and EKS-specific add-ons: IRSA, Pod Identity, ALB Controller, EBS/EFS CSI, Fargate (24).
+- **Cross-week production practice** - chapters **23-25**. Broken-Pod triage playbook (23) and EKS-specific add-ons: IRSA, Pod Identity, ALB Controller, EBS/EFS CSI, Fargate (24), and the Istio service mesh (25).
