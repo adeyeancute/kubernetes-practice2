@@ -33,7 +33,7 @@ kubectl get quota -A
 ```
 - Create pods in the cluster and verify if the quota applies:
 
-Create the pods using the content in the manifest `02-dev-pods.yaml`. The first two pods will be created but the 3rd pod won't be created due to resource requests and limits
+Create the pods using the content in the manifest `02-pods-quota-dev.yaml`. The first two pods will be created but the 3rd pod won't be created due to resource requests and limits
 
 ```yaml
 # pod 1 in dev namespace
@@ -96,7 +96,7 @@ kubectl apply -f 02-pods-quota-dev.yaml
 # you will have and error at the creation of pod 3
 ```
 
-2. Create a resource quota in the test namespace (cpu: request = 1, limits =2, Memory: request=1Gi, limits=2Gi) but also limit the number of pods to 2.
+2. Create a resource quota in the test namespace (cpu: request = 1, limits =2, Memory: request=1Gi, limits=2Gi) but also limit the number of pods to 1.
 
 - Create the resource quota using the content in the manifest `03-test-quota.yaml`
 ```yaml

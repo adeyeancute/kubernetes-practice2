@@ -1,7 +1,7 @@
 **Note**: This practice can be done on **Killercoda kubernetes playgrounds**
 
 ## The secret 
-Secret is just like Configmap but it is used to store sensitive data like private credentials, password,     tokens, secret keys. It does not store data in a plain text form but it stores in an encrypted form using the BASE-64 format. You must always try to improve the security of your Secrets using good practices and advanced security tools such as Vault
+Secret is just like Configmap but it is used to store sensitive data like private credentials, password,     tokens, secret keys. It does not show the data in plain text: the values are **base64-encoded**. Base64 is an encoding, **not encryption**: anyone who can read the Secret can decode it (`base64 -d`). On EKS, Secrets are also encrypted at rest in etcd (KMS), and RBAC decides who can read them. You must always try to improve the security of your Secrets using good practices and advanced security tools such as Vault
 
 ### How to create a secret
 You can create a secret from the command line

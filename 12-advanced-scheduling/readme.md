@@ -211,7 +211,7 @@ kubectl delete -f 02-node-affinity/pod-node-anti-affinity.yaml
 
 #### Notes
 - You can define a pod with both hard and soft type
-- You can define pods with multiple node affinity constraints. Open and verify the manifests `pod-with-preferred-node-affinity-multiple.yaml` and `pod-with-required-node-affinity-multiple.yaml`
+- You can define pods with multiple node affinity constraints. Open and verify the manifests `02-node-affinity/pod-preferred-node-affinity-multiple.yaml` and `02-node-affinity/pod-required-node-affinity-multiple.yaml`
 
 ### The Pod Affinity/Anti-Affinity
 

@@ -10,11 +10,13 @@ set -euo pipefail
 
 CLUSTER="${1:?cluster name required}"
 NAMESPACE="${2:?namespace required}"
+REGION="${AWS_REGION:-us-east-1}"
 
 # Create the Fargate profile. eksctl picks the cluster's private subnets automatically
 # (Fargate only runs Pods in private subnets).
 eksctl create fargateprofile \
   --cluster "$CLUSTER" \
+  --region "$REGION" \
   --name "fargate-$NAMESPACE" \
   --namespace "$NAMESPACE"
 
