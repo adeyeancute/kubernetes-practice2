@@ -24,66 +24,58 @@ Argo CD was created at Intuit in 2018 to solve the "who pushed what, when, why?"
 
 ## Practice: install ArgoCD on EKS
 
-> **TODO — install verification needed**
->
-> The official Argo CD install pages (`https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/` and `https://argo-cd.readthedocs.io/en/stable/getting_started/`) were **not retrievable** during this audit run (the read-the-docs site timed out repeatedly). The install commands below are the ones that have worked in this course in prior sessions, but **before relying on them in production**, please verify the latest recommended install method (especially the recommended pinned chart version and any new IRSA setup) at:
->
-> - https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/
-> - https://argo-cd.readthedocs.io/en/stable/getting_started/
-> - The Helm chart at https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd
-
 ### Prerequisites
 
-- An EKS cluster:
+- The EKS cluster `my-cluster` from chapter 00.
+- For the HTTPS URL `https://argocd.afriqhome.com`: the AWS Load Balancer Controller, ExternalDNS and the ACM wildcard certificate from **chapter 07**. Without them, skip the Ingress and use a port-forward (see below).
+- `kubectl` and `helm`.
+- A Git repository ArgoCD can read. To do the "change Git, watch the cluster follow" test, **fork** this repository to your own GitHub account and replace `https://github.com/utrains/kubernetes-practice2.git` with your fork URL in `argocd-application.yaml`, `argocd-app-of-apps.yaml` and the files of `child-apps/`.
 
-```bash
-eksctl create cluster --name dev-cluster --region us-east-1 \
-  --nodegroup-name dev-nodes --node-type t3.small \
-  --nodes 2 --nodes-min 1 --nodes-max 2
+### Install ArgoCD with Helm (recommended)
+
+The official `argo-cd` chart (from `argoproj/argo-helm`) lets you configure the Ingress, replicas and IRSA in one values file. `argocd-values.yaml` exposes the UI at `https://argocd.afriqhome.com` through an ALB with the ACM certificate (replace the domain with yours):
+
+```yaml
+global:
+  domain: argocd.afriqhome.com
+configs:
+  params:
+    server.insecure: true        # TLS ends at the ALB; ALB -> argocd-server is plain HTTP
+server:
+  ingress:
+    enabled: true
+    controller: aws
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+    aws:
+      serviceType: ClusterIP
+      backendProtocolVersion: GRPC
 ```
-
-- kubeconfig pointed at it:
-
-```bash
-aws eks update-kubeconfig --region us-east-1 --name dev-cluster
-```
-
-- `kubectl` and `helm` installed locally.
-- A Git repository ArgoCD can read (public, or with credentials configured).
-
-### Option A — install from the upstream `install.yaml` (quickest)
-
-This is the path documented in the upstream "getting started" tutorial. It applies a single large manifest containing the CRDs, the `argocd` namespace's RBAC, and the controller deployments.
-
-```bash
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-```
-
-> The `stable` ref always points at the latest GA release. In a production setup you should **pin to a specific tag** (e.g., `v2.13.0`) so upgrades are an explicit action, not a side effect of re-applying a manifest. Replace `stable` with the tag you want. **TODO**: confirm the current GA tag at https://github.com/argoproj/argo-cd/releases.
-
-Wait for the pods to come up:
-
-```bash
-kubectl get pods -n argocd -w
-# expect 7 pods running: argocd-application-controller, argocd-applicationset-controller,
-# argocd-dex-server, argocd-notifications-controller, argocd-redis, argocd-repo-server,
-# argocd-server
-```
-
-### Option B — install via the official Helm chart (recommended for EKS)
-
-The community-maintained `argo-cd` Helm chart (`argoproj/argo-helm`) is the path most EKS shops use because it lets you set IRSA annotations, replicas, HA flags, and an ingress in one place.
 
 ```bash
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
+helm install argocd argo/argo-cd --version 10.10.5 \
+  --namespace argocd --create-namespace \
+  -f argocd-values.yaml --wait
+```
+Chart 10.10.5 installs Argo CD **v3.5.5**. Pin the chart version: upgrades become an explicit `helm upgrade`, not a surprise.
 
-helm install argocd argo/argo-cd \
-  --namespace argocd --create-namespace
+```bash
+kubectl get pods -n argocd
+# 7 pods Running: application-controller, applicationset-controller, dex-server,
+# notifications-controller, redis, repo-server, server
+kubectl get ingress -n argocd
+kubectl logs -n external-dns deploy/external-dns | grep argocd
+# wait for "CREATE argocd.afriqhome.com", then about 1 minute
 ```
 
-> **TODO**: verify the latest chart version (and whether the chart name has changed) at https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd. Pin with `--version X.Y.Z` for production.
+**Alternative (no Helm):** `kubectl create namespace argocd && kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.5/manifests/install.yaml`. Use a version tag, never `stable`.
 
 ### IRSA for ArgoCD (optional, but production-grade on EKS)
 
@@ -92,35 +84,19 @@ ArgoCD itself usually does not need AWS API access — it talks to Git and the i
 1. **Git repo on AWS CodeCommit** — the `argocd-repo-server` ServiceAccount needs an IAM role allowing `codecommit:GitPull`.
 2. **Helm charts in a private ECR registry** — the `argocd-repo-server` ServiceAccount needs `ecr:GetAuthorizationToken` and `ecr:BatchGetImage` on the relevant repos.
 
-Pattern (replace the policy ARN with one that grants exactly what you need):
-
-```bash
-eksctl create iamserviceaccount \
-  --cluster=dev-cluster \
-  --namespace=argocd \
-  --name=argocd-repo-server \
-  --attach-policy-arn=arn:aws:iam::<your-account-id>:policy/ArgoCDRepoServerPolicy \
-  --override-existing-serviceaccounts \
-  --region=us-east-1 \
-  --approve
-
-# Then either restart the repo-server, or — if you installed via Helm —
-# re-run `helm upgrade` with --set repoServer.serviceAccount.create=false
-# and --set repoServer.serviceAccount.name=argocd-repo-server
-kubectl rollout restart deploy/argocd-repo-server -n argocd
+With the Helm chart, put the role on the repo-server ServiceAccount in the values file and `helm upgrade`:
+```yaml
+repoServer:
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::<your-account-id>:role/ArgoCDRepoServerRole
 ```
-
-> **TODO**: confirm the exact ServiceAccount name(s) for the version you install (in older chart versions it was `argocd-repo-server`; the install.yaml uses the same name). Cross-check at https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/.
 
 ---
 
 ## Access the UI
 
-```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-```
-
-Open `https://localhost:8080` (accept the self-signed cert).
+Open **https://argocd.afriqhome.com** (padlock: the ACM certificate). No domain? `kubectl port-forward svc/argocd-server -n argocd 8080:80` and open http://localhost:8080.
 
 Username: `admin`. Get the initial password:
 
@@ -129,7 +105,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d ; echo
 ```
 
-Rotate this password from the UI immediately after first login (Settings -> Accounts).
+Change this password after the first login (**User Info > Update password**), then delete the secret `argocd-initial-admin-secret`.
 
 ---
 
@@ -145,18 +121,47 @@ ArgoCD's whole model is three CRDs:
 
 ## Sample Application manifest
 
-The included `argocd-application.yaml` deploys the `04-deployment/` chapter of THIS repo via ArgoCD.
+`argocd-application.yaml` deploys the folder `21-argocd/demo-app/` of this repo (a Deployment `nginx-demo` with 2 replicas and a Service) into the `default` namespace, with automated sync, prune and self-heal.
 
 ```bash
 kubectl apply -f argocd-application.yaml
 kubectl get applications -n argocd
+# nginx-demo   Synced   Healthy   (after about 10 seconds)
+kubectl get deploy nginx-demo
 ```
 
-Watch in the UI: you should see `nginx-demo` appear, sync, and become `Healthy / Synced`.
+Watch in the UI: `nginx-demo` appears, syncs, and becomes `Healthy / Synced`. Click it to see the tree: Application > Deployment > ReplicaSet > Pods.
 
 ## Test
 
-Make a change in Git: bump the `replicas` in `04-deployment/01-nginx-deployment.yaml`, commit, push. Within ~3 minutes (the default sync poll interval) ArgoCD applies the change. You can also click **Refresh** in the UI to force an immediate check.
+1. **Drift detection + self-heal.** Change the cluster by hand: Git wins.
+```bash
+kubectl scale deployment nginx-demo --replicas=5
+kubectl get deploy nginx-demo -w
+# 5 ... then back to 2 within about 10 seconds: ArgoCD reverted the manual change (selfHeal: true)
+```
+
+2. **Git is the source of truth** (needs your fork). Change `replicas: 2` to `3` in `21-argocd/demo-app/deployment.yaml`, commit, push. Within ~3 minutes (the default poll interval) ArgoCD applies the change. Click **Refresh** in the UI to check immediately.
+
+## App-of-Apps
+
+`argocd-app-of-apps.yaml` creates a **root** Application that watches the folder `21-argocd/child-apps/`. That folder contains only **Application** manifests (`demo-dev.yaml`, `demo-prod.yaml`): the same `demo-app` deployed in the namespaces `demo-dev` and `demo-prod`. Add a file to `child-apps/`, commit, and a new application appears: nobody runs `kubectl apply` any more.
+```bash
+kubectl apply -f argocd-app-of-apps.yaml
+kubectl get applications -n argocd
+# root-app, demo-dev, demo-prod (plus nginx-demo): all Synced / Healthy
+kubectl get deploy -n demo-dev
+kubectl get deploy -n demo-prod
+```
+
+## AppProject
+
+`argocd-appproject.yaml` creates the project `team-a`: its Applications may only come from the listed Git repos, may only deploy to the namespaces `team-a-dev` and `team-a-prod`, and cannot create cluster-wide resources.
+```bash
+kubectl apply -f argocd-appproject.yaml
+kubectl get appproject -n argocd
+```
+An Application with `project: team-a` that targets another namespace is refused by ArgoCD (`namespace ... is not permitted in project 'team-a'`).
 
 ## Cleanup
 
@@ -167,11 +172,4 @@ chmod +x cleanup.sh
 ./cleanup.sh
 ```
 
-It removes the Application, uninstalls ArgoCD, and deletes the namespace.
-
-If you installed via Helm instead of the raw manifest, also run:
-
-```bash
-helm uninstall argocd -n argocd
-kubectl delete namespace argocd
-```
+It deletes the Applications and the demo apps, the AppProject, uninstalls ArgoCD (which removes its ALB; ExternalDNS then deletes `argocd.afriqhome.com`), the namespaces and the ArgoCD CRDs.
