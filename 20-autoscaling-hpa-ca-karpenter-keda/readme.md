@@ -36,7 +36,7 @@ kubectl get pods
 ```
 
 - **target**: 20% average CPU utilization
-- **min**: 2 pods
+- **min**: 1 pod
 - **max**: 10 pods
 
 **WARNING**: you may see `<unknown>/20%` for 1-2 minutes, then `0%/20%`.
@@ -46,7 +46,7 @@ kubectl get pods
 Open another terminal and run a load generator:
 
 ```bash
-kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never -- sh
+kubectl run -i --tty load-generator --rm --image=busybox:1.36 --restart=Never -- sh
 # inside the pod:
 while true; do wget -q -O - http://nginx-service; done
 ```
@@ -100,29 +100,28 @@ Most teams pick `requests` / `limits` numbers out of thin air on day one and nev
 
 ### Prerequisites
 
-- EKS cluster (any supported version is fine: VPA 1.7 works on K8s 1.28+).
-- `kubectl` and `git` installed locally.
+- EKS cluster (VPA 1.8 works on K8s 1.28+).
+- `kubectl` and `helm` installed locally.
 - Metrics Server installed in the cluster (already present on EKS).
 
-### Install (upstream script)
+### Install (official Helm chart)
 
-VPA does not have an official Helm chart — the upstream install method is the `hack/vpa-up.sh` script in the `kubernetes/autoscaler` repo:
+The `kubernetes/autoscaler` project now publishes an official chart, `vertical-pod-autoscaler` (chart 0.14.0 = VPA 1.8.0):
 
 ```bash
-git clone https://github.com/kubernetes/autoscaler.git
-cd autoscaler/vertical-pod-autoscaler
-git checkout vpa-release-1.7
-
-./hack/vpa-up.sh
+helm repo add autoscaler https://kubernetes.github.io/autoscaler
+helm repo update
+helm install vpa autoscaler/vertical-pod-autoscaler -n kube-system --version 0.14.0 --wait
 ```
+(The older method, the `hack/vpa-up.sh` script from a git clone of the repo, still works but needs `bash` and `openssl` and is painful on Windows.)
 
-The script installs three components into `kube-system`:
+The chart installs three components into `kube-system` (2 replicas each):
 
 - **recommender** — reads metrics, computes recommendations.
 - **updater** — evicts pods that need to be resized.
 - **admission-controller** — mutates pods at admission time so they come back with the new requests.
 
-It also generates a TLS cert/secret used by the admission controller.
+It also generates the TLS certificate used by the admission controller webhook.
 
 ### Verify
 
@@ -151,7 +150,7 @@ spec:
     spec:
       containers:
       - name: hamster
-        image: registry.k8s.io/ubuntu-slim:0.1
+        image: busybox:1.36
         resources:
           requests:
             cpu: 100m
@@ -159,7 +158,7 @@ spec:
         command: ["/bin/sh"]
         args:
         - "-c"
-        - "while true; do timeout 0.5s yes >/dev/null; sleep 0.5s; done"
+        - "while true; do timeout 0.5 yes >/dev/null; sleep 0.5; done"
 ---
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
@@ -171,8 +170,19 @@ spec:
     kind:       Deployment
     name:       hamster
   updatePolicy:
-    updateMode: "Off"          # change to "Recreate" to let VPA actually resize
+    updateMode: "Off"          # recommend only. Change to "Recreate" to let VPA resize the pods
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*'
+        minAllowed:
+          cpu: 50m
+          memory: 32Mi
+        maxAllowed:
+          cpu: 1
+          memory: 500Mi
+        controlledResources: ["cpu", "memory"]
 ```
+The `hamster` pods request **100m** CPU but each one burns about **0.5 CPU** (`yes` runs half of the time).
 
 ### Apply + verify
 
@@ -183,15 +193,24 @@ kubectl describe vpa hamster-vpa
 # look under "Recommendation:" for target / lowerBound / upperBound CPU & memory
 ```
 
-It can take a few minutes for the recommender to produce values.
+It can take a few minutes for the recommender to produce values (`PROVIDED True`). Example result:
+```
+NAME          MODE   CPU    MEM     PROVIDED
+hamster-vpa   Off    813m   250Mi   True
+```
+VPA says: "you asked for 100m, you actually need about 813m" (target), anything between `lowerBound` and `upperBound` is acceptable:
+```bash
+kubectl get vpa hamster-vpa -o jsonpath='{.status.recommendation.containerRecommendations[0]}'; echo
+```
+With `updateMode: "Off"` nothing changes: you copy the numbers into your manifests. With `"Recreate"`, the updater evicts the pods and the admission controller recreates them with the new requests.
 
 ### Cleanup
 
 ```bash
 kubectl delete -f vpa-example.yaml
-# tear down VPA itself:
-cd autoscaler/vertical-pod-autoscaler
-./hack/vpa-down.sh
+# tear down VPA itself (helm keeps the CRDs on purpose, delete them if you are done):
+helm uninstall vpa -n kube-system
+kubectl delete crd verticalpodautoscalers.autoscaling.k8s.io verticalpodautoscalercheckpoints.autoscaling.k8s.io
 ```
 
 ---
@@ -218,7 +237,13 @@ If your cluster uses EKS managed node groups (or self-managed ASGs), CA is the s
 ### Prerequisites
 
 - EKS cluster with one or more **managed node groups** (or self-managed ASGs).
-- ASG tags `k8s.io/cluster-autoscaler/enabled=true` and `k8s.io/cluster-autoscaler/<cluster-name>=owned` on every ASG you want CA to control. `eksctl create nodegroup --asg-access` adds these for you.
+- ASG tags `k8s.io/cluster-autoscaler/enabled=true` and `k8s.io/cluster-autoscaler/<cluster-name>=owned` on every ASG you want CA to control. **EKS managed node groups add them automatically** (the `my-nodes` group from chapter 00 has them). Check:
+```bash
+ASG=$(aws eks describe-nodegroup --cluster-name my-cluster --nodegroup-name my-nodes --query "nodegroup.resources.autoScalingGroups[0].name" --output text)
+aws autoscaling describe-tags --filters "Name=auto-scaling-group,Values=$ASG" --query "Tags[?contains(Key,'cluster-autoscaler')].[Key,Value]" --output text
+aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG --query "AutoScalingGroups[0].[MinSize,DesiredCapacity,MaxSize]" --output text
+# CA never goes above MaxSize (4 with the chapter 00 command)
+```
 - IAM OIDC provider associated with the cluster.
 - `kubectl`, `eksctl`, `helm`.
 
@@ -267,7 +292,7 @@ aws iam create-policy \
 
 ```bash
 eksctl create iamserviceaccount \
-  --cluster=dev-cluster \
+  --cluster=my-cluster \
   --namespace=kube-system \
   --name=cluster-autoscaler \
   --attach-policy-arn=arn:aws:iam::<your-account-id>:policy/AmazonEKSClusterAutoscalerPolicy \
@@ -282,35 +307,39 @@ eksctl create iamserviceaccount \
 helm repo add autoscaler https://kubernetes.github.io/autoscaler
 helm repo update
 
-helm install cluster-autoscaler autoscaler/cluster-autoscaler \
+helm install cluster-autoscaler autoscaler/cluster-autoscaler --version 9.59.0 \
   --namespace kube-system \
-  --set autoDiscovery.clusterName=dev-cluster \
+  --set autoDiscovery.clusterName=my-cluster \
   --set awsRegion=us-east-1 \
   --set rbac.serviceAccount.create=false \
-  --set rbac.serviceAccount.name=cluster-autoscaler
+  --set rbac.serviceAccount.name=cluster-autoscaler \
+  --set image.tag=v1.36.1 \
+  --wait
 ```
 
-> **Version pin**: the Cluster Autoscaler container image tag must match your Kubernetes minor version (CA `v1.29.x` for K8s 1.29, CA `v1.30.x` for K8s 1.30, etc.). The Helm chart picks a sensible default but you can override with `--set image.tag=v1.30.0`. Check the [autoscaler releases page](https://github.com/kubernetes/autoscaler/releases) for the exact patch version that matches your cluster.
+> **Version pin**: the Cluster Autoscaler container image tag must match your Kubernetes minor version (CA `v1.36.x` for K8s 1.36). The chart default lags behind (chart 9.59.0 ships CA 1.35), so always set `--set image.tag=...`. Check the [autoscaler releases page](https://github.com/kubernetes/autoscaler/releases) for the exact patch version that matches your cluster.
 
 ### 4. Verify
 
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-cluster-autoscaler
-kubectl logs -n kube-system -l app.kubernetes.io/name=aws-cluster-autoscaler --tail=50
-# look for: "Cluster Autoscaler vX.Y.Z"
+kubectl logs -n kube-system deploy/cluster-autoscaler-aws-cluster-autoscaler --tail=50
 ```
 
 ### 5. Test
 
-Apply a deployment whose pods do not fit on the current nodes (e.g., 30 replicas of a 1-CPU pod on 2 small nodes):
+Apply a deployment whose pods do not fit on the current nodes (10 pods x 500m CPU = 5 CPU, more than 3 t3.medium can give after the system pods):
 
 ```bash
-kubectl create deployment overflow --image=nginx --replicas=30
+kubectl create deployment overflow --image=nginx:1.27 --replicas=10
 kubectl set resources deployment overflow --requests=cpu=500m
-kubectl get pods -w     # expect: many in Pending
-# CA should detect Pending pods and grow the ASG within a few minutes
-kubectl get nodes -w
+kubectl get pods -l app=overflow --field-selector=status.phase=Pending   # some pods are Pending
+# CA detects the Pending pods and grows the ASG
+kubectl logs -n kube-system deploy/cluster-autoscaler-aws-cluster-autoscaler | grep "scale-up plan"
+# Final scale-up plan: [{eks-my-nodes-... 3->4 (max: 4)}]
+kubectl get nodes -w     # a 4th node joins after about 1 minute
 ```
+If some pods are still Pending with 4 nodes: that is the `MaxSize` of the node group.
 
 Then delete the deployment and CA will scale the ASG back down (default: after ~10 minutes of underutilization).
 
@@ -319,7 +348,7 @@ Then delete the deployment and CA will scale the ASG back down (default: after ~
 ```bash
 kubectl delete deployment overflow
 helm uninstall cluster-autoscaler -n kube-system
-eksctl delete iamserviceaccount --cluster=dev-cluster --name=cluster-autoscaler --namespace=kube-system --region=us-east-1
+eksctl delete iamserviceaccount --cluster=my-cluster --name=cluster-autoscaler --namespace=kube-system --region=us-east-1
 aws iam delete-policy --policy-arn arn:aws:iam::<your-account-id>:policy/AmazonEKSClusterAutoscalerPolicy
 ```
 
@@ -360,16 +389,18 @@ Set environment variables (values from the upstream guide):
 
 ```bash
 export KARPENTER_NAMESPACE="kube-system"
-export KARPENTER_VERSION="1.13.0"
+export KARPENTER_VERSION="1.15.0"
 export K8S_VERSION="1.36"
 export AWS_PARTITION="aws"
-export CLUSTER_NAME="${USER}-karpenter-demo"
-export AWS_DEFAULT_REGION="us-west-2"
+export CLUSTER_NAME="karpenter-demo"
+export AWS_DEFAULT_REGION="us-east-1"
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export TEMPOUT="$(mktemp)"
 ```
 
 ### 1. Create the supporting AWS infrastructure (CloudFormation)
+
+**Note:** Karpenter replaces the Cluster Autoscaler: do not run both on the same cluster. This section creates a **second cluster**, `karpenter-demo` (2 x m5.large). Delete it at the end (step 7).
 
 The upstream guide ships a CloudFormation template that creates the Karpenter controller IAM role, node IAM role, instance profile, SQS interruption queue, and EventBridge rules:
 
@@ -410,6 +441,7 @@ iam:
     - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerEKSIntegrationPolicy-${CLUSTER_NAME}
     - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerInterruptionPolicy-${CLUSTER_NAME}
     - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerResourceDiscoveryPolicy-${CLUSTER_NAME}
+    - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerZonalShiftPolicy-${CLUSTER_NAME}
 
 iamIdentityMappings:
 - arn: "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
@@ -429,6 +461,17 @@ managedNodeGroups:
 addons:
 - name: eks-pod-identity-agent
 EOF
+```
+
+**If `eksctl create cluster` stops with a timeout** (laptop asleep, Wi-Fi lost) but CloudFormation shows every stack `CREATE_COMPLETE`, eksctl skipped its last steps. Add them by hand, then continue:
+```bash
+aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${AWS_DEFAULT_REGION}
+P="arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy"
+eksctl create podidentityassociation --cluster ${CLUSTER_NAME} --namespace ${KARPENTER_NAMESPACE} \
+  --service-account-name karpenter --role-name ${CLUSTER_NAME}-karpenter \
+  --permission-policy-arns "$P/KarpenterControllerNodeLifecyclePolicy-${CLUSTER_NAME},$P/KarpenterControllerIAMIntegrationPolicy-${CLUSTER_NAME},$P/KarpenterControllerEKSIntegrationPolicy-${CLUSTER_NAME},$P/KarpenterControllerInterruptionPolicy-${CLUSTER_NAME},$P/KarpenterControllerResourceDiscoveryPolicy-${CLUSTER_NAME},$P/KarpenterControllerZonalShiftPolicy-${CLUSTER_NAME}"
+eksctl create iamidentitymapping --cluster ${CLUSTER_NAME} --arn "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}" \
+  --username 'system:node:{{EC2PrivateDNSName}}' --group system:bootstrappers --group system:nodes
 ```
 
 Create the EC2 Spot service-linked role (idempotent — ignore the "already exists" error):
@@ -459,12 +502,12 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
 ```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=karpenter
 kubectl get crds | grep karpenter
-# expect: nodepools.karpenter.sh, nodeclaims.karpenter.sh, ec2nodeclasses.karpenter.k8s.aws
+# expect: nodepools.karpenter.sh, nodeclaims.karpenter.sh, nodeoverlays.karpenter.sh, ec2nodeclasses.karpenter.k8s.aws
 ```
 
 ### 5. Sample NodePool + EC2NodeClass (`karpenter-nodepool.yaml`)
 
-Apply the upstream getting-started NodePool. It says "give me on-demand AMD64 Linux nodes from generation 3+ of the c/m/r instance families, consolidate underutilized nodes after 1 minute, expire any node after 30 days":
+This NodePool says "give me AMD64 Linux nodes, **on-demand or Spot**, from generation 3+ of the c/m/r instance families; remove or replace under-used nodes 30 seconds after they become empty or under-utilized; replace every node after 30 days". When Spot is allowed, Karpenter picks the cheapest option that fits, so you usually get **Spot** instances:
 
 ```yaml
 apiVersion: karpenter.sh/v1
@@ -474,6 +517,10 @@ metadata:
 spec:
   template:
     spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
       requirements:
         - key: kubernetes.io/arch
           operator: In
@@ -483,46 +530,45 @@ spec:
           values: ["linux"]
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["on-demand"]
+          values: ["on-demand", "spot"]   # on-demand + spot mix
         - key: karpenter.k8s.aws/instance-category
           operator: In
           values: ["c", "m", "r"]
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
           values: ["2"]
-      nodeClassRef:
-        group: karpenter.k8s.aws
-        kind: EC2NodeClass
-        name: default
-      expireAfter: 720h
+      expireAfter: 720h   # 30 days - replace nodes regularly to pick up AMI updates
   limits:
     cpu: 1000
+    memory: 1000Gi
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 1m
+    consolidateAfter: 30s
 ---
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  role: "KarpenterNodeRole-${CLUSTER_NAME}"   # filled in by envsubst below
-  amiSelectorTerms:
-    - alias: "al2023@latest"                  # AL2023 latest published EKS-optimized AMI
+  amiFamily: AL2023
+  role: KarpenterNodeRole-${CLUSTER_NAME}
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}"
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "${CLUSTER_NAME}"
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  amiSelectorTerms:
+    - alias: al2023@latest
 ```
 
 Apply it (using `envsubst` to fill `${CLUSTER_NAME}`):
 
 ```bash
-envsubst < karpenter-nodepool.yaml | kubectl apply -f -
+envsubst '${CLUSTER_NAME}' < karpenter-nodepool.yaml | kubectl apply -f -
 kubectl get nodepool
 kubectl get ec2nodeclass
+# both READY True. If False: kubectl describe ec2nodeclass default (SubnetsNotFound = wrong cluster name in the tags)
 ```
 
 ### 6. Test (the canonical "inflate" deployment)
@@ -534,25 +580,32 @@ kubectl scale deployment inflate --replicas=5
 
 # watch Karpenter provision instances:
 kubectl logs -f -n "${KARPENTER_NAMESPACE}" -l app.kubernetes.io/name=karpenter -c controller
+# "found provisionable pod(s)" -> "computed new nodeclaim(s) to fit pod(s)" -> "launched nodeclaim"
 kubectl get nodeclaims
+# NAME            TYPE         CAPACITY   ZONE         NODE                 READY
+# default-hp76p   c5.2xlarge   spot       us-east-1a   ip-192-168-65-114    True
 kubectl get nodes -w
 ```
+In under a minute, Karpenter launched **one** instance sized for the 5 pending pods (5 CPU), as Spot. The Cluster Autoscaler can only add more copies of the node group instance type.
 
 Then scale back down and watch consolidation:
 
 ```bash
 kubectl delete deployment inflate
-kubectl get nodeclaims -w           # Karpenter terminates the nodes within a minute
+kubectl get nodeclaims -w           # Karpenter removes the empty node after about 1 to 2 minutes
+# logs: "disrupting node(s)" -> "tainted node" -> "deleted node"
 ```
 
 ### 7. Cleanup
 
 ```bash
-kubectl delete nodepool default
+kubectl delete deployment inflate --ignore-not-found
+kubectl delete nodepool default          # Karpenter terminates the nodes it created
 kubectl delete ec2nodeclass default
+kubectl get nodeclaims                   # wait until empty
 helm uninstall karpenter --namespace "${KARPENTER_NAMESPACE}"
-aws cloudformation delete-stack --stack-name "Karpenter-${CLUSTER_NAME}"
-eksctl delete cluster --name "${CLUSTER_NAME}"
+eksctl delete cluster --name "${CLUSTER_NAME}" --region "${AWS_DEFAULT_REGION}"
+aws cloudformation delete-stack --stack-name "Karpenter-${CLUSTER_NAME}"   # after the cluster is gone
 ```
 
 ---
@@ -596,8 +649,8 @@ HPA's minimum is 1 replica. For queue consumers, batch workers, and "wake up whe
 helm repo add kedacore https://kedacore.github.io/charts
 helm repo update
 
-helm install keda kedacore/keda \
-  --namespace keda --create-namespace
+helm install keda kedacore/keda --version 2.21.0 \
+  --namespace keda --create-namespace --wait
 ```
 
 ### 2. Verify
@@ -611,9 +664,17 @@ kubectl get crds | grep keda.sh
 
 ### 3. IRSA for KEDA on EKS
 
-The cleanest pattern for AWS scalers is **IRSA on the workload's own ServiceAccount**, then point KEDA at it via a `TriggerAuthentication` with `podIdentity.provider: aws`. The KEDA operator does not need AWS permissions in this pattern — your worker pod does.
+Two different things need to read the queue, so two identities:
+- the **KEDA operator** asks "how many messages are waiting?" (`sqs:GetQueueAttributes`) to decide the number of pods. It gets an IRSA role, and the `TriggerAuthentication` with `podIdentity.provider: aws` tells KEDA to use it.
+- the **worker pods** receive and delete the messages. They run as the `worker-sa` ServiceAccount, with their own IRSA role.
 
-Create the IAM policy (`keda-sqs-read.json`):
+(KEDA can also borrow the worker's role with `identityOwner: workload`, but then the operator must be allowed to `sts:AssumeRole` into it: more IAM plumbing. Keep it simple.)
+
+Create the SQS queue and the IAM policy (`keda-sqs-read.json`, replace `<your-account-id>`):
+```bash
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+aws sqs create-queue --queue-name my-queue --region us-east-1
+```
 
 ```json
 {
@@ -638,75 +699,43 @@ aws iam create-policy \
   --policy-name KedaSqsReadPolicy \
   --policy-document file://keda-sqs-read.json
 
+# the workers' identity
 eksctl create iamserviceaccount \
-  --cluster=dev-cluster \
+  --cluster=my-cluster \
   --namespace=default \
   --name=worker-sa \
-  --attach-policy-arn=arn:aws:iam::<your-account-id>:policy/KedaSqsReadPolicy \
+  --attach-policy-arn=arn:aws:iam::$AWS_ACCOUNT_ID:policy/KedaSqsReadPolicy \
   --override-existing-serviceaccounts \
   --region=us-east-1 \
   --approve
+
+# the KEDA operator's identity (role only: the Helm chart owns the keda-operator ServiceAccount)
+eksctl create iamserviceaccount \
+  --cluster=my-cluster \
+  --namespace=keda \
+  --name=keda-operator \
+  --role-name keda-operator-my-cluster \
+  --role-only \
+  --attach-policy-arn=arn:aws:iam::$AWS_ACCOUNT_ID:policy/KedaSqsReadPolicy \
+  --region=us-east-1 \
+  --approve
+helm upgrade keda kedacore/keda -n keda --version 2.21.0 --reuse-values \
+  --set podIdentity.aws.irsa.enabled=true \
+  --set podIdentity.aws.irsa.roleArn=arn:aws:iam::$AWS_ACCOUNT_ID:role/keda-operator-my-cluster --wait
+kubectl rollout restart deploy/keda-operator -n keda     # IRSA credentials are injected at pod creation
 ```
 
 ### 4. Sample manifest (`keda-scaledobject.yaml`)
 
-The verified upstream pattern for SQS uses a `TriggerAuthentication` with `podIdentity.provider: aws`, which delegates to the ServiceAccount that the target Deployment runs as:
+The file contains the worker Deployment (starts at **0** replicas), the `TriggerAuthentication` and the `ScaledObject`. The worker loop receives one message, "processes" it for 2 seconds, then **deletes** it (a received message that is not deleted comes back after the visibility timeout):
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: sqs-worker
-spec:
-  replicas: 0                       # KEDA owns the count; start at 0
-  selector:
-    matchLabels:
-      app: sqs-worker
-  template:
-    metadata:
-      labels:
-        app: sqs-worker
-    spec:
-      serviceAccountName: worker-sa # the IRSA-bound SA from step 3
-      containers:
-      - name: worker
-        image: amazon/aws-cli:2.15.0
-        command: ["/bin/sh", "-c"]
-        args:
-        - >
-          while true; do
-            aws sqs receive-message --queue-url $QUEUE_URL --region us-east-1 || true;
-            sleep 5;
-          done
-        env:
-        - name: QUEUE_URL
-          value: "https://sqs.us-east-1.amazonaws.com/<your-account-id>/my-queue"
----
-apiVersion: keda.sh/v1alpha1
-kind: TriggerAuthentication
-metadata:
-  name: keda-aws-sqs-auth
-  namespace: default
-spec:
-  podIdentity:
-    provider: aws                   # uses the IRSA on the target's ServiceAccount
----
-apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
-metadata:
-  name: sqs-worker-scaledobject
-  namespace: default
-spec:
-  scaleTargetRef:
-    name: sqs-worker
-  minReplicaCount: 0                # scale to ZERO when idle (this is the point of KEDA)
-  maxReplicaCount: 10
   triggers:
   - type: aws-sqs-queue
     authenticationRef:
       name: keda-aws-sqs-auth
     metadata:
-      queueURL: https://sqs.us-east-1.amazonaws.com/<your-account-id>/my-queue
+      queueURL: "https://sqs.us-east-1.amazonaws.com/${AWS_ACCOUNT_ID}/my-queue"
       queueLength: "5"              # target: 5 messages per pod
       awsRegion: "us-east-1"
 ```
@@ -714,8 +743,9 @@ spec:
 ### 5. Apply + verify
 
 ```bash
-kubectl apply -f keda-scaledobject.yaml
-kubectl get scaledobject
+# name the variable: a plain "envsubst" would also empty $QUEUE_URL and $RH inside the worker script
+envsubst '${AWS_ACCOUNT_ID}' < keda-scaledobject.yaml | kubectl apply -f -
+kubectl get scaledobject           # READY True (False + "AccessDenied" in the operator logs = IRSA problem)
 kubectl describe scaledobject sqs-worker-scaledobject
 kubectl get hpa                     # KEDA auto-creates an HPA named keda-hpa-<name>
 kubectl get deploy sqs-worker       # should show 0 replicas while queue is empty
@@ -726,22 +756,31 @@ kubectl get deploy sqs-worker       # should show 0 replicas while queue is empt
 Push some messages to your SQS queue and watch the Deployment scale up:
 
 ```bash
-for i in {1..50}; do
-  aws sqs send-message --queue-url https://sqs.us-east-1.amazonaws.com/<your-account-id>/my-queue --message-body "msg-$i" --region us-east-1
+QUEUE_URL=https://sqs.us-east-1.amazonaws.com/$AWS_ACCOUNT_ID/my-queue
+for i in $(seq 1 50); do
+  aws sqs send-message --queue-url $QUEUE_URL --message-body "msg-$i" --region us-east-1 >/dev/null
 done
 
 kubectl get deploy sqs-worker -w
-kubectl get pods -l app=sqs-worker -w
 ```
-
-Drain the queue (or let your worker consume it) and watch the Deployment go back to 0.
+What you should see (50 messages, 5 per pod, max 10):
+```
+replicas=1  queue=50
+replicas=4  queue=45
+replicas=8  queue=28
+replicas=10 queue=0     # the workers emptied the queue
+replicas=0  queue=0     # 60 seconds later (cooldownPeriod): scaled to ZERO
+```
+Watch the queue at the same time: `aws sqs get-queue-attributes --queue-url $QUEUE_URL --attribute-names ApproximateNumberOfMessages`.
 
 ### 7. Cleanup
 
 ```bash
-kubectl delete -f keda-scaledobject.yaml
-eksctl delete iamserviceaccount --cluster=dev-cluster --name=worker-sa --namespace=default --region=us-east-1
-aws iam delete-policy --policy-arn arn:aws:iam::<your-account-id>:policy/KedaSqsReadPolicy
+envsubst '${AWS_ACCOUNT_ID}' < keda-scaledobject.yaml | kubectl delete -f -
+eksctl delete iamserviceaccount --cluster=my-cluster --name=worker-sa --namespace=default --region=us-east-1
+eksctl delete iamserviceaccount --cluster=my-cluster --name=keda-operator --namespace=keda --region=us-east-1
+aws sqs delete-queue --queue-url https://sqs.us-east-1.amazonaws.com/$AWS_ACCOUNT_ID/my-queue
+aws iam delete-policy --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/KedaSqsReadPolicy
 helm uninstall keda -n keda
 kubectl delete namespace keda
 ```

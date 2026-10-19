@@ -1,52 +1,77 @@
-# KEDA ScaledObject pointed at an AWS SQS queue.
-# Requires KEDA to be installed first:
-#   helm repo add kedacore https://kedacore.github.io/charts
-#   helm install keda kedacore/keda --namespace keda --create-namespace
-#
-# The Deployment "sqs-consumer" should already exist and be a worker that reads
-# from the queue. KEDA will scale it 0..10 based on queue depth.
----
-apiVersion: v1
-kind: Secret
+# KEDA: scale an SQS worker from 0 to 10 pods based on the number of messages in the queue.
+# Prereqs (see readme.md, KEDA section): KEDA installed, the SQS queue "my-queue", and the
+# IRSA ServiceAccount "worker-sa" allowed to read/delete messages on that queue.
+# ${AWS_ACCOUNT_ID} is filled in by envsubst. Name the variable explicitly, otherwise envsubst also
+# empties $QUEUE_URL and $RH in the worker script below:
+#   envsubst '${AWS_ACCOUNT_ID}' < keda-scaledobject.yaml | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: keda-aws-credentials
+  name: sqs-worker
   namespace: default
-type: Opaque
-stringData:
-  AWS_ACCESS_KEY_ID: <YOUR_ACCESS_KEY>
-  AWS_SECRET_ACCESS_KEY: <YOUR_SECRET_KEY>
+spec:
+  replicas: 0                       # KEDA owns the count; start at 0
+  selector:
+    matchLabels:
+      app: sqs-worker
+  template:
+    metadata:
+      labels:
+        app: sqs-worker
+    spec:
+      serviceAccountName: worker-sa # the IRSA-bound SA: its IAM role can read the queue
+      containers:
+      - name: worker
+        image: amazon/aws-cli:2.27.0
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          # receive one message, "process" it for 2 seconds, then DELETE it (otherwise it comes back)
+          while true; do
+            RH=$(aws sqs receive-message --queue-url "$QUEUE_URL" --wait-time-seconds 10 \
+                   --query 'Messages[0].ReceiptHandle' --output text)
+            if [ -n "$RH" ] && [ "$RH" != "None" ]; then
+              echo "processing a message"; sleep 2
+              aws sqs delete-message --queue-url "$QUEUE_URL" --receipt-handle "$RH"
+            fi
+          done
+        env:
+        - name: QUEUE_URL
+          value: "https://sqs.us-east-1.amazonaws.com/${AWS_ACCOUNT_ID}/my-queue"
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
 ---
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
-  name: keda-aws-auth
+  name: keda-aws-sqs-auth
   namespace: default
 spec:
-  secretTargetRef:
-    - parameter: awsAccessKeyID
-      name: keda-aws-credentials
-      key: AWS_ACCESS_KEY_ID
-    - parameter: awsSecretAccessKey
-      name: keda-aws-credentials
-      key: AWS_SECRET_ACCESS_KEY
+  podIdentity:
+    provider: aws                   # KEDA reads the queue length with the IAM role (IRSA) of the
+                                    # KEDA operator itself (identityOwner: keda, the default)
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: sqs-consumer-scaler
+  name: sqs-worker-scaledobject
   namespace: default
 spec:
   scaleTargetRef:
-    name: sqs-consumer        # the Deployment KEDA will scale
-  minReplicaCount: 0           # scale to zero when the queue is empty
+    name: sqs-worker
+  minReplicaCount: 0                # scale to ZERO when idle (this is the point of KEDA)
   maxReplicaCount: 10
-  pollingInterval: 15          # check the queue every 15s
-  cooldownPeriod: 60           # wait 60s of no work before scaling down
+  pollingInterval: 15               # check the queue every 15s
+  cooldownPeriod: 60                # wait 60s with an empty queue before going back to 0
   triggers:
-    - type: aws-sqs-queue
-      authenticationRef:
-        name: keda-aws-auth
-      metadata:
-        queueURL: https://sqs.us-east-1.amazonaws.com/<YOUR_ACCOUNT_ID>/my-work-queue
-        queueLength: "5"      # target: 5 messages per replica
-        awsRegion: us-east-1
+  - type: aws-sqs-queue
+    authenticationRef:
+      name: keda-aws-sqs-auth
+    metadata:
+      queueURL: "https://sqs.us-east-1.amazonaws.com/${AWS_ACCOUNT_ID}/my-queue"
+      queueLength: "5"              # target: 5 messages per pod
+      awsRegion: "us-east-1"

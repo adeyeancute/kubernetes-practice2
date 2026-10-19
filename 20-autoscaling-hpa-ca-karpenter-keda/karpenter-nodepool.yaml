@@ -1,7 +1,7 @@
 # Karpenter NodePool + EC2NodeClass example.
 # Requires Karpenter to be installed first (helm chart oci://public.ecr.aws/karpenter/karpenter).
-# Replace <YOUR_CLUSTER_NAME> with the name of your EKS cluster.
-# Replace the role / subnet / SG tags below with values that match your environment.
+# ${CLUSTER_NAME} is filled in by envsubst:
+#   envsubst '${CLUSTER_NAME}' < karpenter-nodepool.yaml | kubectl apply -f -
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -44,12 +44,12 @@ metadata:
   name: default
 spec:
   amiFamily: AL2023
-  role: KarpenterNodeRole-<YOUR_CLUSTER_NAME>
+  role: KarpenterNodeRole-${CLUSTER_NAME}
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: <YOUR_CLUSTER_NAME>
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: <YOUR_CLUSTER_NAME>
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   amiSelectorTerms:
     - alias: al2023@latest
