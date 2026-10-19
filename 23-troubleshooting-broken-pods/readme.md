@@ -124,11 +124,17 @@ This one has TWO objects: a Deployment and a Service. Apply the file. Both Pods 
 
 `curl` hangs or returns nothing. Everything LOOKS fine: Pods Running, Service exists.
 
-The debug move: `kubectl get endpoints web`. Output shows `ENDPOINTS: <none>`.
+The debug move: `kubectl get endpoints web`. Output shows `ENDPOINTS: <none>`. (Since K8s 1.33 this prints a deprecation warning: the modern equivalent is `kubectl get endpointslices -l kubernetes.io/service-name=web`, where ENDPOINTS shows `<unset>`.)
+
+Compare the two sides:
+```bash
+kubectl get svc web -o jsonpath='{.spec.selector}'; echo     # {"app":"webserver"}
+kubectl get pods --show-labels                                 # app=web
+```
 
 Root cause: the Service's `selector: { app: webserver }` does not match the Deployment's Pod labels (`app: web`). The Service has zero Pods to route to. Every request times out because the Service has no backends.
 
-Fix: change either the Deployment's `metadata.labels.app` or the Service's `selector.app` so they match.
+Fix: change the Service's `selector.app` to `web` (or change the **Pod template** labels, `spec.template.metadata.labels`, together with the Deployment `spec.selector`). Changing the Deployment's own `metadata.labels` does **nothing**: a Service selects Pods, not Deployments. After the fix, `kubectl get endpoints web` lists the 2 Pod IPs.
 
 This is the single most common "everything looks fine but nothing works" bug in K8s. Always check `kubectl get endpoints` when a Service is not routing.
 </details>
@@ -153,4 +159,6 @@ Once you can diagnose these 5 in your sleep, you have the muscle memory for 80% 
 
 ```bash
 kubectl delete namespace triage
+# switch your context back to "default", otherwise every next kubectl command targets the deleted namespace
+kubectl config set-context --current --namespace=default
 ```
