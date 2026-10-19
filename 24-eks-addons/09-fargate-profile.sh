@@ -11,11 +11,8 @@ set -euo pipefail
 CLUSTER="${1:?cluster name required}"
 NAMESPACE="${2:?namespace required}"
 
-# Get the private subnet IDs for the cluster (Fargate only runs on private subnets).
-SUBNETS=$(aws eks describe-cluster --name "$CLUSTER" \
-  --query 'cluster.resourcesVpcConfig.subnetIds' --output text | tr '\t' ',')
-
-# Create the Fargate profile.
+# Create the Fargate profile. eksctl picks the cluster's private subnets automatically
+# (Fargate only runs Pods in private subnets).
 eksctl create fargateprofile \
   --cluster "$CLUSTER" \
   --name "fargate-$NAMESPACE" \

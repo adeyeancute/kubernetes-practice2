@@ -21,6 +21,8 @@ aws eks describe-addon \
 aws eks create-addon \
   --cluster-name "$CLUSTER" \
   --addon-name eks-pod-identity-agent
+# the agent must be running before pods can get credentials
+aws eks wait addon-active --cluster-name "$CLUSTER" --addon-name eks-pod-identity-agent
 
 # 2. Create the ServiceAccount in the cluster if it does not exist.
 kubectl create serviceaccount "$SA_NAME" -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -

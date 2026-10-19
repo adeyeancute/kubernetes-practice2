@@ -1,0 +1,15 @@
+# A Pod that gets AWS permissions through EKS Pod Identity.
+# Prereq: 02-pod-identity-association.sh my-cluster default s3-reader-pi pod-s3-reader
+# (creates the ServiceAccount s3-reader-pi and associates it with the IAM role pod-s3-reader).
+# Note: no annotation at all on the ServiceAccount: the association lives in the EKS API.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: s3-reader-pi
+  namespace: default
+spec:
+  serviceAccountName: s3-reader-pi
+  containers:
+    - name: aws-cli
+      image: amazon/aws-cli:2.27.0
+      command: ["sleep", "3600"]

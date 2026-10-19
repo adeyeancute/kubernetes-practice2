@@ -1,24 +1,85 @@
-# An Ingress that provisions a real AWS Application Load Balancer.
+# PATH-based routing on one ALB: https://alb-demo.afriqhome.com/app1 and /app2 go to two different apps.
+# (Chapter 07 showed HOST-based routing: app1.afriqhome.com and app2.afriqhome.com.)
 #
-# Prereq: AWS Load Balancer Controller installed (see 03-alb-controller-install.sh).
+# Prereqs: AWS Load Balancer Controller (03-alb-controller-install.sh or chapter 07),
+# ExternalDNS + the ACM wildcard certificate (chapter 07) for the HTTPS hostname.
+# Replace afriqhome.com with your own domain.
 #
-# What this does:
-#   - alb.ingress.kubernetes.io/scheme: internet-facing ==> public ALB.
-#   - alb.ingress.kubernetes.io/target-type: ip         ==> routes directly to Pod IPs (works with Fargate too).
-#   - Path /app1 goes to app1-service, /app2 to app2-service.
+# The ALB forwards the full path ("/app1/..."), so the backends must answer on that path:
+# http-echo answers on every path, which keeps the demo simple. (A plain nginx would return 404.)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: app1 }
+  template:
+    metadata:
+      labels: { app: app1 }
+    spec:
+      containers:
+        - name: echo
+          image: hashicorp/http-echo:1.0
+          args: ["-text=hello from app1", "-listen=:8080"]
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app1-service
+spec:
+  selector: { app: app1 }
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: app2 }
+  template:
+    metadata:
+      labels: { app: app2 }
+    spec:
+      containers:
+        - name: echo
+          image: hashicorp/http-echo:1.0
+          args: ["-text=hello from app2", "-listen=:8080"]
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app2-service
+spec:
+  selector: { app: app2 }
+  ports:
+    - port: 80
+      targetPort: 8080
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: alb-demo
   annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing   # public ALB
+    alb.ingress.kubernetes.io/target-type: ip           # routes directly to Pod IPs (works with Fargate too)
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
     alb.ingress.kubernetes.io/healthcheck-path: /
 spec:
+  ingressClassName: alb             # replaces the deprecated kubernetes.io/ingress.class annotation
   rules:
-    - http:
+    - host: alb-demo.afriqhome.com  # replace with your own subdomain
+      http:
         paths:
           - path: /app1
             pathType: Prefix

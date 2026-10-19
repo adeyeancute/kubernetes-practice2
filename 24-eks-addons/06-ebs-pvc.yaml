@@ -21,6 +21,10 @@ spec:
       env:
         - name: POSTGRES_PASSWORD
           value: change-me-in-production
+        # A new EBS volume contains "lost+found": initdb refuses a non-empty directory.
+        # Keep the data in a sub-directory of the mount point.
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
       volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
