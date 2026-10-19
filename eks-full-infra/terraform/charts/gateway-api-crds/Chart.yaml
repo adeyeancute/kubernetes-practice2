@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gateway-api-crds
+description: Kubernetes Gateway API CRDs, standard channel (vendored standard-install.yaml)
+type: application
+version: 1.6.0
+appVersion: "v1.6.0"

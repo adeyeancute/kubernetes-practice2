@@ -1,0 +1,44 @@
+# Let's Encrypt issuer for the whole cluster: DNS-01 challenges in Route 53.
+# cert-manager gets its AWS credentials from EKS Pod Identity (no keys here).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: {{ .Values.letsencrypt.server }}
+    {{- with .Values.letsencrypt.email }}
+    email: {{ . }}
+    {{- end }}
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: {{ .Values.region }}
+            hostedZoneID: {{ .Values.letsencrypt.hostedZoneId }}
+---
+# Default StorageClass: encrypted gp3 EBS volumes, created in the AZ of the pod
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  type: gp3
+  encrypted: "true"
+---
+# Mesh-wide mutual TLS: every pod with a sidecar only accepts encrypted mesh traffic
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT

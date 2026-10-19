@@ -1,0 +1,5 @@
+apiVersion: v2
+name: platform-config
+description: Cluster-wide platform configuration (issuers, storage, mesh policy, ArgoCD URL, app ApplicationSet)
+type: application
+version: 1.0.0

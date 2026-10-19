@@ -1,0 +1,18 @@
+# All values are set by terraform (platform-helm.tf). Listed here for reference.
+domain: example.com
+region: us-east-1
+letsencrypt:
+  server: https://acme-v02.api.letsencrypt.org/directory
+  email: ""
+  hostedZoneId: ""
+ingress:
+  namespace: istio-ingress
+  serviceDNS: istio-ingress.istio-ingress.svc.cluster.local
+  lbHostname: ""
+argocd:
+  host: argocd.example.com
+gitops:
+  repoURL: ""
+  revision: main
+  appsPath: eks-full-infra/apps
+  chartPath: eks-full-infra/app-template

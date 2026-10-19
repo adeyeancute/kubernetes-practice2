@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and adjust.
+region             = "us-east-1"
+cluster_name       = "platform"
+kubernetes_version = "1.36"
+domain             = "afriqhome.com" # an existing public Route 53 hosted zone
+
+# Where ArgoCD reads the app requests (folder eks-full-infra/apps/)
+gitops_repo_url = "https://github.com/utrains/kubernetes-practice2.git"
+gitops_revision = "main"
+
+# letsencrypt_email  = "platform-team@example.com"
+# letsencrypt_server = "https://acme-staging-v02.api.letsencrypt.org/directory"  # tests only

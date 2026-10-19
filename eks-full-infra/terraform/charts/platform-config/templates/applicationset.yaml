@@ -1,0 +1,54 @@
+# One ArgoCD Application per app request file in {{ .Values.gitops.appsPath }}/*.yaml
+# The file gives name + env (+ optional image, port, replicas...). Everything else is derived
+# by the chart in {{ .Values.gitops.chartPath }}.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: {{ .Values.gitops.repoURL }}
+        revision: {{ .Values.gitops.revision }}
+        files:
+          - path: "{{ .Values.gitops.appsPath }}/*.yaml"
+  template:
+    metadata:
+      name: '{{`{{ .name }}-{{ .env }}`}}'
+      labels:
+        app.kubernetes.io/part-of: apps
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io   # deleting the app deletes everything it created
+    spec:
+      project: default
+      source:
+        repoURL: {{ .Values.gitops.repoURL }}
+        targetRevision: {{ .Values.gitops.revision }}
+        path: {{ .Values.gitops.chartPath }}
+        helm:
+          releaseName: '{{`{{ .name }}`}}'
+          values: |
+            platform:
+              domain: {{ .Values.domain }}
+              clusterIssuer: letsencrypt
+              ingress:
+                namespace: {{ .Values.ingress.namespace }}
+                serviceDNS: {{ .Values.ingress.serviceDNS }}
+                lbHostname: {{ .Values.ingress.lbHostname }}
+            app: {{`{{ toJson (omit . "path") }}`}}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{`{{ .name }}-{{ .env }}`}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        managedNamespaceMetadata:
+          labels:
+            istio-injection: enabled          # every app pod gets an Envoy sidecar (mTLS)
+            app.kubernetes.io/part-of: apps

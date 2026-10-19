@@ -1,0 +1,88 @@
+# ArgoCD UI at https://{{ .Values.argocd.host }}: same pattern as every app
+# (certificate + gateway in the ingress namespace, route next to the service).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-tls
+  namespace: {{ .Values.ingress.namespace }}
+spec:
+  secretName: argocd-tls
+  dnsNames:
+    - {{ .Values.argocd.host }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: argocd
+  namespace: {{ .Values.ingress.namespace }}
+  annotations:
+    external-dns.alpha.kubernetes.io/target: {{ .Values.ingress.lbHostname }}
+spec:
+  gatewayClassName: istio
+  addresses:
+    - type: Hostname
+      value: {{ .Values.ingress.serviceDNS }}   # bind to the shared ingress gateway (no new load balancer)
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      hostname: {{ .Values.argocd.host }}
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: {{ .Values.argocd.host }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: argocd-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: argocd
+      namespace: {{ .Values.ingress.namespace }}
+      sectionName: https
+  hostnames:
+    - {{ .Values.argocd.host }}
+  rules:
+    - backendRefs:
+        - name: argocd-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-redirect
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: argocd
+      namespace: {{ .Values.ingress.namespace }}
+      sectionName: http
+  hostnames:
+    - {{ .Values.argocd.host }}
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

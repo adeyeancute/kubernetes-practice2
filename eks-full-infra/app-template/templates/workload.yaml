@@ -1,0 +1,108 @@
+{{- include "app.validate" . -}}
+{{- $a := .Values.app -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.name" . }}
+  namespace: {{ include "app.namespace" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  {{- if not $a.autoscaling.enabled }}
+  replicas: {{ $a.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "app.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "app.labels" . | nindent 8 }}
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "app.selector" . | nindent 14 }}
+      containers:
+        - name: app
+          image: {{ $a.image }}
+          ports:
+            - name: http
+              containerPort: {{ $a.port }}
+          env:
+            - name: APP_NAME
+              value: {{ $a.name | quote }}
+            - name: APP_ENV
+              value: {{ $a.env | quote }}
+            {{- range $k, $v := $a.env_vars }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ $a.healthPath }}
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: {{ $a.healthPath }}
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml $a.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app.name" . }}
+  namespace: {{ include "app.namespace" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "app.selector" . | nindent 4 }}
+  ports:
+    - name: http                # the "http" name tells Istio the protocol
+      port: 80
+      targetPort: http
+---
+{{- if or $a.autoscaling.enabled (gt (int $a.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "app.name" . }}
+  namespace: {{ include "app.namespace" . }}
+spec:
+  maxUnavailable: 1             # node drains / upgrades never take the whole app down
+  selector:
+    matchLabels:
+      {{- include "app.selector" . | nindent 6 }}
+{{- end }}
+{{- if $a.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "app.name" . }}
+  namespace: {{ include "app.namespace" . }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "app.name" . }}
+  minReplicas: {{ $a.autoscaling.minReplicas }}
+  maxReplicas: {{ $a.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $a.autoscaling.cpuTarget }}
+{{- end }}

@@ -1,0 +1,2 @@
+{{ include "app.name" . }} ({{ .Values.app.env }}) is deployed in namespace {{ include "app.namespace" . }}.
+URL: https://{{ include "app.host" . }}

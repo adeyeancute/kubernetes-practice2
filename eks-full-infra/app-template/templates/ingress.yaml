@@ -1,0 +1,94 @@
+{{- $host := include "app.host" . -}}
+{{- $p := .Values.platform -}}
+# TLS certificate for the app subdomain (Let's Encrypt, DNS-01). Lives next to the gateway pods.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "app.tlsSecret" . }}
+  namespace: {{ $p.ingress.namespace }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "app.tlsSecret" . }}
+  dnsNames:
+    - {{ $host }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ $p.clusterIssuer }}
+---
+# The app's own listeners (HTTP + HTTPS for its subdomain), served by the SHARED ingress gateway:
+# "addresses" binds this Gateway to the existing ingress Service (no new load balancer).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "app.gateway" . }}
+  namespace: {{ $p.ingress.namespace }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  annotations:
+    # ExternalDNS: point <subdomain> at the NLB of the shared ingress
+    external-dns.alpha.kubernetes.io/target: {{ $p.ingress.lbHostname }}
+spec:
+  gatewayClassName: istio
+  addresses:
+    - type: Hostname
+      value: {{ $p.ingress.serviceDNS }}
+  listeners:
+    {{- range $l := list (dict "name" "http" "port" 80 "protocol" "HTTP") (dict "name" "https" "port" 443 "protocol" "HTTPS") }}
+    - name: {{ $l.name }}
+      port: {{ $l.port }}
+      protocol: {{ $l.protocol }}
+      hostname: {{ $host }}
+      {{- if eq $l.protocol "HTTPS" }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ include "app.tlsSecret" $ }}
+      {{- end }}
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "app.namespace" $ }}   # only this app's routes
+    {{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "app.name" . }}
+  namespace: {{ include "app.namespace" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ include "app.gateway" . }}
+      namespace: {{ $p.ingress.namespace }}
+      sectionName: https
+  hostnames:
+    - {{ $host }}
+  rules:
+    - backendRefs:
+        - name: {{ include "app.name" . }}
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "app.name" . }}-redirect
+  namespace: {{ include "app.namespace" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ include "app.gateway" . }}
+      namespace: {{ $p.ingress.namespace }}
+      sectionName: http
+  hostnames:
+    - {{ $host }}
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
