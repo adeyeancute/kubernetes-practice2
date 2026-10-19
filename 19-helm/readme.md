@@ -82,14 +82,29 @@ helm repo update
 2. Create the namespace and install the app
 ```bash
 kubectl create ns monitoring
-helm install prometheus --namespace monitoring prometheus-community/kube-prometheus-stack
+helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring   -f prometheus-values.yaml --wait --timeout 10m
+```
+`prometheus-values.yaml` overrides only a few chart values: the Grafana admin password, an HTTPS Ingress for Grafana at `grafana.afriqhome.com` (ALB + ACM certificate + ExternalDNS record, see chapter 07; replace the domain with yours), a smaller Prometheus, and no Alertmanager. This is the **values file pattern**: never edit the chart, override its values.
+
+See every value you could override:
+```bash
+helm show values prometheus-community/kube-prometheus-stack | less
 ```
 
 3. Use the prometheus grafana stack for monitoring kubernetes cluster live
 ```bash
 kubectl get pods -n monitoring
-kubectl get svc -n monitoring   ## Get the details of prometheus-grafana service
-kubectl edit service prometheus-grafana -n monitoring # change to LoadBalancer
+# grafana, prometheus, the prometheus operator, kube-state-metrics, one node-exporter per node
+kubectl get ingress -n monitoring
+kubectl logs -n external-dns deploy/external-dns | grep grafana
+# wait for "CREATE grafana.afriqhome.com", then about 1 minute
+```
+Open **https://grafana.afriqhome.com**, log in as `admin` with the password from `prometheus-values.yaml`, and open **Dashboards > Kubernetes / Compute Resources / Cluster**: live CPU and memory of your cluster.
+
+No domain? Use a port-forward instead: `kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80` and open http://localhost:3000.
+
+```bash
+helm list -n monitoring        # the release, its chart version and revision
 ```
 
 **Official gihub repo for prometheus and grafana**
@@ -131,7 +146,7 @@ replicaCount: 1
 
 image:
   repository: nginx
-  tag: latest
+  tag: "1.27"          # pin a version, never "latest"
   pullPolicy: IfNotPresent
 
 service:
@@ -202,6 +217,11 @@ helm upgrade my-release myapp
 kubectl get pods
 kubectl get svc
 ```
+You can also override a value from the command line, without editing the file:
+```bash
+helm upgrade my-release myapp --set replicaCount=2
+helm history my-release      # one revision per install / upgrade / rollback
+```
 
 8. Rollback the Release
 
@@ -224,6 +244,11 @@ kubectl get svc
 
 ```bash
 helm uninstall my-release --ignore-not-found
+# the monitoring stack (also deletes the Grafana ALB; ExternalDNS removes the DNS record)
+helm uninstall prometheus -n monitoring --ignore-not-found
+kubectl delete ns monitoring --ignore-not-found
+# the chart installs CRDs (Prometheus, ServiceMonitor...) that helm uninstall keeps. Remove them if you are done:
+kubectl get crd -o name | grep monitoring.coreos.com | xargs -r kubectl delete
 # If you added any helm repos for the practice, you can remove them with:
 # helm repo remove <repo-name>
 ```

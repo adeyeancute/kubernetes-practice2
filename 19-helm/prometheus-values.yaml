@@ -1,0 +1,28 @@
+# Values for the kube-prometheus-stack chart: override only what we need, keep the chart defaults
+# for everything else. Grafana is exposed at https://grafana.afriqhome.com through an ALB
+# (ACM certificate found automatically), and ExternalDNS creates the DNS record (chapter 07).
+# Replace afriqhome.com with your own domain.
+grafana:
+  adminPassword: ChangeMe-Grafana-2026      # change it! (or read it from a Secret in production)
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+    hosts:
+      - grafana.afriqhome.com
+    path: /
+
+# Smaller footprint for a class cluster
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+alertmanager:
+  enabled: false

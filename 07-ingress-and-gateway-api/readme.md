@@ -113,7 +113,7 @@ kubectl logs -n external-dns deploy/external-dns --tail=5
 # expect: "Applying provider record filter for domains: [afriqhome.com. ...]" and "All records are already up to date"
 ```
 
-**DNS caching warning:** do **not** open a hostname in your browser before ExternalDNS has created it. Your laptop / router then remembers "this name does not exist" for as long as the zone's SOA negative TTL (Route 53 default: **1 day**). Wait for the `Desired change: CREATE <host>` log line first. If you got caught, check with `nslookup <host> 8.8.8.8` and flush your local cache (`ipconfig /flushdns` on Windows, `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder` on Mac). Instructors: lower the negative TTL of the zone (last field of the SOA record) to 60 seconds before class.
+**DNS caching warning:** do **not** open a hostname in your browser before ExternalDNS has created it. Your laptop / router then remembers "this name does not exist" for as long as the zone's SOA negative TTL (Route 53 default: **1 day**). Wait for the `Desired change: CREATE <host>` log line, **then about 1 more minute** (Route 53 propagates the change after ExternalDNS sends it). If you got caught, check with `nslookup <host> 8.8.8.8` and flush your local cache (`ipconfig /flushdns` on Windows, `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder` on Mac). Instructors: lower the negative TTL of the zone (last field of the SOA record) to 60 seconds before class.
 
 ### Create sample applications 
 
