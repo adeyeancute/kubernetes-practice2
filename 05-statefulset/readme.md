@@ -1,5 +1,34 @@
 **Note**: Parts 1 and 2 can be done on **Killercoda kubernetes playgrounds** or any cluster. Part 3 needs a default StorageClass (`kubectl get storageclass` must show one marked `(default)`). On EKS, do it after chapter 14 (Persistent storage), which installs the EBS CSI driver and the `gp3` StorageClass.
 
+## Stateless vs stateful applications
+
+The **state** of an application is the data it must remember between two requests: a shopping cart, a logged-in session, the rows of a table, the messages of a queue, an uploaded file.
+
+A **stateless** application keeps **no state inside itself**. Every request carries what it needs, and anything that must be remembered goes to an external store (a database, a cache, S3). Any copy can answer any request, and a copy that dies loses nothing.
+- Examples: a website frontend, a REST API, an nginx proxy, a worker that reads a job from a queue and writes the result to a database.
+- If one copy is killed, another copy answers the next request: the user sees nothing.
+- To handle more traffic, start more copies: they are all the same.
+
+A **stateful** application **keeps the state itself**, usually on disk, and each copy can hold different data.
+- Examples: databases (PostgreSQL, MySQL, MongoDB), caches that must survive restarts (Redis), message brokers (Kafka, RabbitMQ), search engines (Elasticsearch), coordination services (ZooKeeper, etcd).
+- If a copy is killed and replaced by a blank one, its data is gone.
+- Copies are **not** interchangeable: in a PostgreSQL cluster, one pod is the primary (it accepts writes) and the others are replicas (they copy from the primary). Clients and replicas must know which one is which.
+
+| | Stateless | Stateful |
+|---|---|---|
+| Where the data lives | outside the app (database, cache, S3) | inside the app, on its own disk |
+| Are the copies identical? | yes, any copy can answer | no, each copy has its own data and role |
+| A copy dies | nothing lost, another copy answers | its data must come back with it |
+| Scale out | add copies, done | the new copy must get its data (replication, rebalancing) |
+| Kubernetes object | **Deployment** | **StatefulSet** |
+
+**Why some applications need a StatefulSet.** A stateful application asks Kubernetes for things a Deployment cannot give:
+1. **Its own disk, back after every restart.** When `db-0` is rescheduled on another node, it must get **its** volume back, not a new empty one and not the volume of `db-1`.
+2. **A stable name.** A replica says "I copy from `db-0`", a client says "write to the primary at `db-0`". If the name changed at every restart (as with a Deployment), nobody could find anybody.
+3. **A predictable order.** The primary (`db-0`) must be running before the replicas start and copy from it; during an update, replicas are changed before the primary.
+
+A StatefulSet provides exactly these three things. The rest of this chapter shows each one.
+
 ## The StatefulSet
 
 A **StatefulSet** runs pods that each have their **own identity**: a fixed name, a fixed DNS name and, usually, their own disk. It is made for applications that keep data or need to know "who is who": databases (PostgreSQL, MySQL), message brokers (Kafka, RabbitMQ), search engines (Elasticsearch), coordination services (ZooKeeper, etcd).
@@ -147,6 +176,8 @@ A Deployment pod can be deleted any time: worst case, a request fails. A Statefu
 
 ## Check yourself
 
+- **Explain it:** What is the difference between a stateless and a stateful application? Give two examples of each.
+- **Explain it:** Which three things does a stateful application need that a Deployment cannot give?
 - **Explain it:** What is the difference between a Deployment and a StatefulSet? Give an example of an app for each.
 - **What happens when** you delete the pod `db-0`? What is the same afterwards, and what is different?
 - **Explain it:** What is a headless Service, and why does a StatefulSet need one?
