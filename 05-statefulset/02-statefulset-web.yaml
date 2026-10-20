@@ -1,0 +1,25 @@
+# StatefulSet without storage: shows the stable names, the start order and the per-pod DNS names.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  serviceName: web          # the headless Service that gives each pod its DNS name
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27
+        ports:
+        - containerPort: 80
+        readinessProbe:     # the next pod is only created when this one is Ready
+          httpGet:
+            path: /
+            port: 80

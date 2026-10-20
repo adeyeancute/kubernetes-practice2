@@ -220,7 +220,7 @@ To enable autoscaling for a deployment, we need a specific object called **HPA (
 - Reduce the load (the HPA should scale down the pods)
 - Clean up (optional)
 
-The full hands-on practice is in chapter 20 ([Autoscaling](../20-autoscaling-hpa-ca-karpenter-keda/readme.md)).
+The full hands-on practice is in chapter 21 ([Autoscaling](../21-autoscaling-hpa-ca-karpenter-keda/readme.md)).
 
 ## Cleanup
 

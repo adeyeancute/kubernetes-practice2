@@ -1,0 +1,21 @@
+# The same nginx as 02-statefulset-web.yaml, but as a Deployment: compare the pod names,
+# the start order and what happens when a pod is deleted.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-deploy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-deploy
+  template:
+    metadata:
+      labels:
+        app: web-deploy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27
+        ports:
+        - containerPort: 80

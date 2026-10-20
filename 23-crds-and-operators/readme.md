@@ -28,7 +28,7 @@ An Operator is the only realistic way to package "day-2 ops knowledge" (failover
 | **postgres-operator** (CloudNativePG, Zalando, Crunchy) | PostgreSQL clusters with backups, failover, read replicas |
 | **prometheus-operator** | Prometheus + Alertmanager + ServiceMonitor / PodMonitor ecosystem |
 | **external-secrets-operator** | Sync secrets from AWS Secrets Manager / Vault / GCP Secret Manager into K8s Secrets |
-| **argocd** (you saw it in chapter 21) | GitOps Application + AppProject |
+| **argocd** (you saw it in chapter 22) | GitOps Application + AppProject |
 | **istio / linkerd** | Service mesh resources (`VirtualService`, `DestinationRule`) |
 
 ## When to use vs not use an Operator

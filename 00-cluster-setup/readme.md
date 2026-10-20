@@ -17,7 +17,7 @@ Most of the practice in this repository can be done using kubernetes playgrounds
 
 ## Kubernetes on Docker Desktop (local practice)
 
-If you already have Docker Desktop installed on your Mac or Windows machine, you get a single-node Kubernetes cluster for free. No extra install, no cloud account, no billing worries. Perfect for chapters 00 through 10.
+If you already have Docker Desktop installed on your Mac or Windows machine, you get a single-node Kubernetes cluster for free. No extra install, no cloud account, no billing worries. Perfect for chapters 00 through 11.
 
 ### How to enable it
 
@@ -41,7 +41,7 @@ You should see one node named `docker-desktop` with status `Ready`.
 
 ### When to use vs Killercoda vs EKS
 
-- **Docker Desktop Kubernetes**: fast local iteration. No internet needed once it is running. Best for chapters 00 to 10.
+- **Docker Desktop Kubernetes**: fast local iteration. No internet needed once it is running. Best for chapters 00 to 11.
 - **Killercoda**: no local install required. Best for quick classroom demos or if your laptop cannot run Docker Desktop.
 - **EKS**: real cloud practice. Required for chapters that need real EBS/EFS storage, ALB Ingress, IAM for Pods, or DaemonSet on multiple nodes.
 
@@ -120,7 +120,7 @@ Use the following command to create a cluster:
 eksctl create cluster --name my-cluster --region us-east-1 --version 1.36 --with-oidc --nodegroup-name my-nodes --node-type t3.medium --nodes 3 --nodes-min 2 --nodes-max 4
 ```
 - `--version 1.36`: the Kubernetes version. Use a version listed by `aws eks describe-cluster-versions` (pick the one with `defaultVersion: true`).
-- `--with-oidc`: creates the IAM OIDC provider needed later for IAM roles for service accounts (chapters 13, 20, 24).
+- `--with-oidc`: creates the IAM OIDC provider needed later for IAM roles for service accounts (chapters 14, 21, 25).
 - `t3.medium` x 3: each t3.medium node can run 17 pods (a t3.small only 11). The later chapters (ArgoCD, cert-manager, Istio, autoscaling) need that room. Three nodes also spread across availability zones for the scheduling chapter.
 **Note:** This command may complete in 10 to 15 minutes depending on your computer and network connection. Be patient and wait till the end of the process
 

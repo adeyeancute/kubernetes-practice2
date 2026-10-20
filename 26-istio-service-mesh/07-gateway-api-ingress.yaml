@@ -1,7 +1,7 @@
-# Istio as a Gateway API implementation (same API as chapter 07, different controller).
+# Istio as a Gateway API implementation (same API as chapter 08, different controller).
 # Istio creates a gateway Deployment + a LoadBalancer Service for this Gateway automatically.
 # The annotations under "infrastructure" are copied onto that Service: the AWS Load Balancer
-# Controller (chapter 07) then builds an NLB that terminates HTTPS on 443 with the ACM certificate.
+# Controller (chapter 08) then builds an NLB that terminates HTTPS on 443 with the ACM certificate.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

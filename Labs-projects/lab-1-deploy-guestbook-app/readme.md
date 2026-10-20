@@ -54,7 +54,7 @@ kubectl get deploy,svc,pods
 
 #### Deploy the Frontend Application
 
-Create and apply the frontend ConfigMap, deployment and service for the php app. The ConfigMap `frontend-config` holds `GET_HOSTS_FROM=dns`, loaded into the container with `envFrom` (see chapter 09): the app then finds Redis through the Service DNS names `redis-leader` and `redis-follower`.
+Create and apply the frontend ConfigMap, deployment and service for the php app. The ConfigMap `frontend-config` holds `GET_HOSTS_FROM=dns`, loaded into the container with `envFrom` (see chapter 10): the app then finds Redis through the Service DNS names `redis-leader` and `redis-follower`.
 
 Apply the file `03-frontend-deployment-service.yaml`
 ```bash
@@ -64,7 +64,7 @@ kubectl get deploy,svc,pods
 
 #### Test the Deployment
 
-The frontend is exposed by the Ingress `frontend` at **https://guestbook.afriqhome.com** (ALB + ACM certificate + DNS record created by ExternalDNS: prerequisites from chapter 07; replace the domain with yours in `03-frontend-deployment-service.yaml`).
+The frontend is exposed by the Ingress `frontend` at **https://guestbook.afriqhome.com** (ALB + ACM certificate + DNS record created by ExternalDNS: prerequisites from chapter 08; replace the domain with yours in `03-frontend-deployment-service.yaml`).
 ```bash
 kubectl get ingress frontend
 kubectl logs -n external-dns deploy/external-dns | grep guestbook

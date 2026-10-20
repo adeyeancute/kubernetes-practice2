@@ -52,7 +52,7 @@ spec:
     app: guestbook
     tier: frontend
 ---
-# HTTPS entry point: ALB + ACM certificate, DNS record created by ExternalDNS (chapter 07)
+# HTTPS entry point: ALB + ACM certificate, DNS record created by ExternalDNS (chapter 08)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

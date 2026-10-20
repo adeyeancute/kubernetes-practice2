@@ -1,0 +1,53 @@
+# StatefulSet with one volume PER POD (volumeClaimTemplates).
+# Each pod appends a line to /data/history.log every time it starts: after a restart,
+# the old lines are still there, because the pod gets back the same volume.
+# Needs a default StorageClass (check: kubectl get storageclass).
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  clusterIP: None
+  selector:
+    app: db
+  ports:
+  - name: db
+    port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+spec:
+  serviceName: db
+  replicas: 2
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: db
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "$(date) $(hostname) started" >> /data/history.log
+          sleep 36000
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:      # one PVC per pod: data-db-0, data-db-1, ...
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi

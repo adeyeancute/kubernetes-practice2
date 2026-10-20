@@ -84,7 +84,7 @@ helm repo update
 kubectl create ns monitoring
 helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring   -f prometheus-values.yaml --wait --timeout 10m
 ```
-`prometheus-values.yaml` overrides only a few chart values: the Grafana admin password, an HTTPS Ingress for Grafana at `grafana.afriqhome.com` (ALB + ACM certificate + ExternalDNS record, see chapter 07; replace the domain with yours), a smaller Prometheus, and no Alertmanager. This is the **values file pattern**: never edit the chart, override its values.
+`prometheus-values.yaml` overrides only a few chart values: the Grafana admin password, an HTTPS Ingress for Grafana at `grafana.afriqhome.com` (ALB + ACM certificate + ExternalDNS record, see chapter 08; replace the domain with yours), a smaller Prometheus, and no Alertmanager. This is the **values file pattern**: never edit the chart, override its values.
 
 See every value you could override:
 ```bash

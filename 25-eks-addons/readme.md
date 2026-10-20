@@ -90,13 +90,13 @@ kubectl exec s3-reader-pi -- env | grep AWS_CONTAINER
 
 Vanilla K8s Ingress does nothing on its own. The AWS Load Balancer Controller watches Ingress objects and provisions real AWS Application Load Balancers.
 
-Install: you already did it in **chapter 07** (with ExternalDNS for the DNS records). On a new cluster, `03-alb-controller-install.sh` runs the same steps (pinned v3.6.0, IAM policy of the same version) and does nothing if the controller is already there:
+Install: you already did it in **chapter 08** (with ExternalDNS for the DNS records). On a new cluster, `03-alb-controller-install.sh` runs the same steps (pinned v3.6.0, IAM policy of the same version) and does nothing if the controller is already there:
 
 ```bash
 bash 03-alb-controller-install.sh my-cluster <aws-account-id>
 ```
 
-Chapter 07 routed by **host name** (`app1.afriqhome.com`, `app2.afriqhome.com`). `04-ingress-alb.yaml` routes by **path** on one host: `https://alb-demo.afriqhome.com/app1` and `/app2` (replace the domain with yours). It includes two small apps that answer on any path:
+Chapter 08 routed by **host name** (`app1.afriqhome.com`, `app2.afriqhome.com`). `04-ingress-alb.yaml` routes by **path** on one host: `https://alb-demo.afriqhome.com/app1` and `/app2` (replace the domain with yours). It includes two small apps that answer on any path:
 
 ```bash
 kubectl apply -f 04-ingress-alb.yaml
@@ -113,12 +113,12 @@ curl -I https://alb-demo.afriqhome.com/nope   # 404: no rule matches
 
 EBS is single-AZ block storage. Fast. Perfect for a single-Pod database.
 
-Install: done in **chapter 13** (EKS add-on + IAM role). **Do not** run `aws eks create-addon --addon-name aws-ebs-csi-driver` without `--service-account-role-arn`: the driver then has no AWS permissions and every PVC stays `Pending`.
+Install: done in **chapter 14** (EKS add-on + IAM role). **Do not** run `aws eks create-addon --addon-name aws-ebs-csi-driver` without `--service-account-role-arn`: the driver then has no AWS permissions and every PVC stays `Pending`.
 
 Use:
 
 ```bash
-kubectl apply -f 05-ebs-storageclass.yaml   # the StorageClass "gp3" (same as chapter 13)
+kubectl apply -f 05-ebs-storageclass.yaml   # the StorageClass "gp3" (same as chapter 14)
 kubectl apply -f 06-ebs-pvc.yaml            # PVC + a PostgreSQL Pod using it
 kubectl get pvc postgres-data
 kubectl wait --for=condition=Ready pod/postgres
@@ -132,7 +132,7 @@ Trade-off: the Pod is pinned to the AZ where the EBS volume lives. If the node d
 
 EFS is a shared NFS filesystem. Slower than EBS. Perfect for shared uploads, ML model files, or WordPress-style read-heavy content across many replicas.
 
-Install: done in **chapter 13** (file system, one mount target per AZ, security group on port 2049, EKS add-on + IAM role). Reuse that file system (`$EFS_ID`).
+Install: done in **chapter 14** (file system, one mount target per AZ, security group on port 2049, EKS add-on + IAM role). Reuse that file system (`$EFS_ID`).
 
 Use:
 

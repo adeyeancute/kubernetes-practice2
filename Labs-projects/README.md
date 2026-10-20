@@ -8,7 +8,7 @@ Real-world capstone labs that tie multiple Kubernetes primitives together into a
 A classic guestbook: a PHP frontend backed by Redis (leader + follower). You practice: `Deployment` for the stateless PHP frontend and for the Redis leader (1 replica) and followers, non-overlapping label selectors, a `ConfigMap` loaded with `envFrom`, `Service` for internal DNS, and an HTTPS `Ingress` (guestbook.<domain>) for exposing the frontend. Reinforces chapters 04 (deployment), 06 (service), and 09 (configmap).
 
 ### `lab-2-deploy-wordpress-with-pvc`
-A WordPress site backed by MySQL, both persisting to `PersistentVolumeClaim` backed storage. You practice: `Secret` for the DB password, `PersistentVolumeClaim` on EBS (MySQL data, RWO) and on EFS (WordPress files, RWX), `Service` for both tiers, an HTTPS `Ingress`, and a persistence test (delete the pods, the site survives). Reinforces chapters 10 (secrets), 13 (persistent-storage), 06 (service), 09 (configmap).
+A WordPress site backed by MySQL, both persisting to `PersistentVolumeClaim` backed storage. You practice: `Secret` for the DB password, `PersistentVolumeClaim` on EBS (MySQL data, RWO) and on EFS (WordPress files, RWX), `Service` for both tiers, an HTTPS `Ingress`, and a persistence test (delete the pods, the site survives). Reinforces chapters 11 (secrets), 14 (persistent-storage), 07 (service), 09 (configmap).
 
 ### `pod-breakdown.yaml`
 A commented Pod manifest walking through every field. Use it as a reference when you write your own manifests from scratch.

@@ -153,7 +153,7 @@ This is the single most common "everything looks fine but nothing works" bug in 
 
 ## What comes next
 
-Once you can diagnose these 5 in your sleep, you have the muscle memory for 80% of real K8s incidents in production. The remaining 20% are cluster-level failures (kubelet crashed, CNI broken, control plane unreachable). Chapter 18 (cluster-maintenance-and-troubleshooting) covers those.
+Once you can diagnose these 5 in your sleep, you have the muscle memory for 80% of real K8s incidents in production. The remaining 20% are cluster-level failures (kubelet crashed, CNI broken, control plane unreachable). Chapter 19 (cluster-maintenance-and-troubleshooting) covers those.
 
 ## Cleanup
 

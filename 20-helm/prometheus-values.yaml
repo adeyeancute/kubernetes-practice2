@@ -1,6 +1,6 @@
 # Values for the kube-prometheus-stack chart: override only what we need, keep the chart defaults
 # for everything else. Grafana is exposed at https://grafana.afriqhome.com through an ALB
-# (ACM certificate found automatically), and ExternalDNS creates the DNS record (chapter 07).
+# (ACM certificate found automatically), and ExternalDNS creates the DNS record (chapter 08).
 # Replace afriqhome.com with your own domain.
 grafana:
   adminPassword: ChangeMe-Grafana-2026      # change it! (or read it from a Secret in production)

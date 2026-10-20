@@ -1,8 +1,8 @@
 # PATH-based routing on one ALB: https://alb-demo.afriqhome.com/app1 and /app2 go to two different apps.
-# (Chapter 07 showed HOST-based routing: app1.afriqhome.com and app2.afriqhome.com.)
+# (Chapter 08 showed HOST-based routing: app1.afriqhome.com and app2.afriqhome.com.)
 #
-# Prereqs: AWS Load Balancer Controller (03-alb-controller-install.sh or chapter 07),
-# ExternalDNS + the ACM wildcard certificate (chapter 07) for the HTTPS hostname.
+# Prereqs: AWS Load Balancer Controller (03-alb-controller-install.sh or chapter 08),
+# ExternalDNS + the ACM wildcard certificate (chapter 08) for the HTTPS hostname.
 # Replace afriqhome.com with your own domain.
 #
 # The ALB forwards the full path ("/app1/..."), so the backends must answer on that path:

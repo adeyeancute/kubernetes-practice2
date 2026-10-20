@@ -47,11 +47,11 @@ kubectl get pods -l app=web -o wide     # 4 pods, none on the drained node
 kubectl uncordon $NODE                  # maintenance done
 kubectl delete -f 01-app-with-pdb.yaml
 ```
-**Note:** on EKS, managed node group upgrades (`eksctl upgrade nodegroup`) and the Cluster Autoscaler / Karpenter (chapter 20) drain nodes the same way and also respect PDBs. A PDB with `minAvailable` equal to the replica count blocks every drain: don't do that.
+**Note:** on EKS, managed node group upgrades (`eksctl upgrade nodegroup`) and the Cluster Autoscaler / Karpenter (chapter 21) drain nodes the same way and also respect PDBs. A PDB with `minAvailable` equal to the replica count blocks every drain: don't do that.
 
 ### Real-world scenario: replace a broken worker node
 
-Symptom seen while testing this course: every `kubectl exec` / `kubectl logs` to the pods of **one** node failed with `error: unable to upgrade connection: Unauthorized`, while the other nodes worked. Cause: a container with the `SYS_TIME` capability had changed the clock of the node to 2020 (see chapter 16), so the node TLS certificates were "not yet valid".
+Symptom seen while testing this course: every `kubectl exec` / `kubectl logs` to the pods of **one** node failed with `error: unable to upgrade connection: Unauthorized`, while the other nodes worked. Cause: a container with the `SYS_TIME` capability had changed the clock of the node to 2020 (see chapter 17), so the node TLS certificates were "not yet valid".
 
 On EKS, nodes are **cattle, not pets**: don't repair a broken node, replace it. The managed node group (an Auto Scaling group) creates a new identical node automatically:
 ```bash
@@ -68,7 +68,7 @@ kubectl get nodes -w     # a new node joins and becomes Ready after 2 to 3 minut
 In production environments, it is recommended to have many nodes in the control plane (odd numbers: 3, 5 ..) running for high availability.
 
 ## Backing up a cluster
-**Note:** on EKS (and every managed Kubernetes) AWS runs and backs up the control plane, including etcd: you have no access to etcd. You back up **your** objects and volumes instead (Velero, AWS Backup, and Git with ArgoCD in chapter 21). The `etcdctl` commands below apply to self-managed clusters (kubeadm, Killercoda).
+**Note:** on EKS (and every managed Kubernetes) AWS runs and backs up the control plane, including etcd: you have no access to etcd. You back up **your** objects and volumes instead (Velero, AWS Backup, and Git with ArgoCD in chapter 22). The `etcdctl` commands below apply to self-managed clusters (kubeadm, Killercoda).
 
 For disaster recovery, it is important to backup cluster state periodically. This can be done by taking a snapshot of the etcd (`etcdctl snapshot save` with necessary parameters). To restore the state of the cluster, use `etcdctl snapshot restore` with necessary options.
 It is also useful to save cluster certificates.

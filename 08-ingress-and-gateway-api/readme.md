@@ -59,7 +59,7 @@ aws iam create-policy-version --policy-arn arn:aws:iam::$ACCOUNT_ID:policy/AWSLo
 # aws iam delete-policy-version --policy-arn arn:aws:iam::$ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy --version-id v1
 ```
 
-3. Create an IAM role + Kubernetes ServiceAccount for the controller (IRSA, see chapter 24):
+3. Create an IAM role + Kubernetes ServiceAccount for the controller (IRSA, see chapter 25):
 ```bash
 eksctl create iamserviceaccount --cluster=$CLUSTER --region $REGION --namespace=kube-system \
   --name=aws-load-balancer-controller \
@@ -67,7 +67,7 @@ eksctl create iamserviceaccount --cluster=$CLUSTER --region $REGION --namespace=
   --override-existing-serviceaccounts --approve
 ```
 
-4. Install the Gateway API CRDs (used in the second half of this chapter, and by Istio in chapter 25). The controller detects them at startup, so install them **before** the controller:
+4. Install the Gateway API CRDs (used in the second half of this chapter, and by Istio in chapter 26). The controller detects them at startup, so install them **before** the controller:
 ```bash
 kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/refs/heads/main/config/crd/gateway/gateway-crds.yaml
@@ -86,7 +86,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller -n ku
   --set enableServiceMutatorWebhook=false
 kubectl rollout status deploy/aws-load-balancer-controller -n kube-system
 ```
-**Why `enableServiceMutatorWebhook=false`?** Without it, the controller takes over **every** `Service` of type `LoadBalancer` and creates an **internal** NLB for it (not reachable from the internet). With it, plain `type: LoadBalancer` services keep working as in chapter 06, and the controller only handles Ingress, Gateway API and services that explicitly ask for it (annotation `service.beta.kubernetes.io/aws-load-balancer-type: external`).
+**Why `enableServiceMutatorWebhook=false`?** Without it, the controller takes over **every** `Service` of type `LoadBalancer` and creates an **internal** NLB for it (not reachable from the internet). With it, plain `type: LoadBalancer` services keep working as in chapter 07, and the controller only handles Ingress, Gateway API and services that explicitly ask for it (annotation `service.beta.kubernetes.io/aws-load-balancer-type: external`).
 
 ### Automatic DNS records with ExternalDNS
 
@@ -256,7 +256,7 @@ curl https://app1.afriqhome.com      # nginx welcome page
 curl https://app2.afriqhome.com      # "It works!" (httpd)
 curl -I http://app1.afriqhome.com    # 301 redirect to https://
 ```
-Or open both URLs in your browser: the padlock shows the ACM certificate. **One** ALB serves both apps (compare with chapter 06, where every LoadBalancer service created its own load balancer).
+Or open both URLs in your browser: the padlock shows the ACM certificate. **One** ALB serves both apps (compare with chapter 07, where every LoadBalancer service created its own load balancer).
 
 ## Gateway API: the modern successor to Ingress
 

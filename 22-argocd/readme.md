@@ -27,7 +27,7 @@ Argo CD was created at Intuit in 2018 to solve the "who pushed what, when, why?"
 ### Prerequisites
 
 - The EKS cluster `my-cluster` from chapter 00.
-- For the HTTPS URL `https://argocd.afriqhome.com`: the AWS Load Balancer Controller, ExternalDNS and the ACM wildcard certificate from **chapter 07**. Without them, skip the Ingress and use a port-forward (see below).
+- For the HTTPS URL `https://argocd.afriqhome.com`: the AWS Load Balancer Controller, ExternalDNS and the ACM wildcard certificate from **chapter 08**. Without them, skip the Ingress and use a port-forward (see below).
 - `kubectl` and `helm`.
 - A Git repository ArgoCD can read. To do the "change Git, watch the cluster follow" test, **fork** this repository to your own GitHub account and replace `https://github.com/utrains/kubernetes-practice2.git` with your fork URL in `argocd-application.yaml`, `argocd-app-of-apps.yaml` and the files of `child-apps/`.
 
@@ -121,7 +121,7 @@ ArgoCD's whole model is three CRDs:
 
 ## Sample Application manifest
 
-`argocd-application.yaml` deploys the folder `21-argocd/demo-app/` of this repo (a Deployment `nginx-demo` with 2 replicas and a Service) into the `default` namespace, with automated sync, prune and self-heal.
+`argocd-application.yaml` deploys the folder `22-argocd/demo-app/` of this repo (a Deployment `nginx-demo` with 2 replicas and a Service) into the `default` namespace, with automated sync, prune and self-heal.
 
 ```bash
 kubectl apply -f argocd-application.yaml
@@ -141,11 +141,11 @@ kubectl get deploy nginx-demo -w
 # 5 ... then back to 2 within about 10 seconds: ArgoCD reverted the manual change (selfHeal: true)
 ```
 
-2. **Git is the source of truth** (needs your fork). Change `replicas: 2` to `3` in `21-argocd/demo-app/deployment.yaml`, commit, push. Within ~3 minutes (the default poll interval) ArgoCD applies the change. Click **Refresh** in the UI to check immediately.
+2. **Git is the source of truth** (needs your fork). Change `replicas: 2` to `3` in `22-argocd/demo-app/deployment.yaml`, commit, push. Within ~3 minutes (the default poll interval) ArgoCD applies the change. Click **Refresh** in the UI to check immediately.
 
 ## App-of-Apps
 
-`argocd-app-of-apps.yaml` creates a **root** Application that watches the folder `21-argocd/child-apps/`. That folder contains only **Application** manifests (`demo-dev.yaml`, `demo-prod.yaml`): the same `demo-app` deployed in the namespaces `demo-dev` and `demo-prod`. Add a file to `child-apps/`, commit, and a new application appears: nobody runs `kubectl apply` any more.
+`argocd-app-of-apps.yaml` creates a **root** Application that watches the folder `22-argocd/child-apps/`. That folder contains only **Application** manifests (`demo-dev.yaml`, `demo-prod.yaml`): the same `demo-app` deployed in the namespaces `demo-dev` and `demo-prod`. Add a file to `child-apps/`, commit, and a new application appears: nobody runs `kubectl apply` any more.
 ```bash
 kubectl apply -f argocd-app-of-apps.yaml
 kubectl get applications -n argocd

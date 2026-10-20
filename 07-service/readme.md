@@ -228,7 +228,7 @@ kubectl delete -f 05-service-loadbalancer.yaml
 kubectl delete -f 01-service-pod-def.yaml
 ```
 
-**Note:** In chapter 07 you will see the better pattern for HTTP apps: one Ingress (one load balancer) for many services, with HTTPS and a real DNS name.
+**Note:** In chapter 08 you will see the better pattern for HTTP apps: one Ingress (one load balancer) for many services, with HTTPS and a real DNS name.
 
 Note: If the ``port`` value is different from ``80`` (default for the LoadBalancer service type), you need open the port in the nodes security group and also specify the port when accessing the service in your browser ``<LoadBalancer>:<port>``
 

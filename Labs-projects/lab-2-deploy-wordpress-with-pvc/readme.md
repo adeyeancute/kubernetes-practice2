@@ -14,10 +14,10 @@ In this Lab, we will deploy WordPress and MySQL in Kubernetes using persistent s
 
 ## Prerequisites
 - The EKS cluster and the knowledge of the objects used here (Pods, Deployment, Service, PV, PVC, ConfigMap and Secret).
-- **Chapter 13**, dynamic storage:
-  - EBS CSI driver add-on + the **`gp3`** StorageClass (`13-persistent-storage/ebs-volume`)
-  - EFS file system + EFS CSI driver add-on + the **`efs-sc`** StorageClass (`13-persistent-storage/efs-volume`)
-- **Chapter 07**, HTTPS URL: AWS Load Balancer Controller, ExternalDNS and the ACM wildcard certificate. Replace `wordpress.afriqhome.com` with your own subdomain in `04-wordpress-deployment.yaml`.
+- **Chapter 14**, dynamic storage:
+  - EBS CSI driver add-on + the **`gp3`** StorageClass (`14-persistent-storage/ebs-volume`)
+  - EFS file system + EFS CSI driver add-on + the **`efs-sc`** StorageClass (`14-persistent-storage/efs-volume`)
+- **Chapter 08**, HTTPS URL: AWS Load Balancer Controller, ExternalDNS and the ACM wildcard certificate. Replace `wordpress.afriqhome.com` with your own subdomain in `04-wordpress-deployment.yaml`.
 
 Check the StorageClasses:
 ```bash

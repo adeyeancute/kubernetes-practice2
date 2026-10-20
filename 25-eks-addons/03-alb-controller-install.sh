@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install the AWS Load Balancer Controller on an EKS cluster (same steps as chapter 07).
-# Skip this script if you already installed the controller in chapter 07.
+# Install the AWS Load Balancer Controller on an EKS cluster (same steps as chapter 08).
+# Skip this script if you already installed the controller in chapter 08.
 #
 # Usage:
 #   ./03-alb-controller-install.sh <cluster-name> <aws-account-id>
@@ -16,7 +16,7 @@ LBC_VERSION="3.6.0"   # controller version; the IAM policy must come from the sa
 POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy"
 
 if helm status aws-load-balancer-controller -n kube-system >/dev/null 2>&1; then
-  echo "The AWS Load Balancer Controller is already installed (chapter 07). Nothing to do."
+  echo "The AWS Load Balancer Controller is already installed (chapter 08). Nothing to do."
   exit 0
 fi
 

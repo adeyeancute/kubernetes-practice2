@@ -1,18 +1,17 @@
-# Child Application managed by root-app (argocd-app-of-apps.yaml): same demo-app in namespace demo-prod
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: demo-prod
+  name: nginx-demo
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/utrains/kubernetes-practice2.git
     targetRevision: main
-    path: 21-argocd/demo-app
+    path: 22-argocd/demo-app
   destination:
     server: https://kubernetes.default.svc
-    namespace: demo-prod
+    namespace: default
   syncPolicy:
     automated:
       prune: true

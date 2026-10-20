@@ -26,7 +26,7 @@ spec:
     repoURL: https://github.com/utrains/kubernetes-practice2.git
     targetRevision: main
     # Point at a git folder that contains ONLY Application manifests.
-    path: 21-argocd/child-apps
+    path: 22-argocd/child-apps
 
   destination:
     server: https://kubernetes.default.svc

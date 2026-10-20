@@ -39,11 +39,11 @@ A **service mesh** moves those concerns **out of the application code and into t
 | Ingress from outside the cluster | Gateway API `Gateway` (or Istio `Gateway`) | LoadBalancer in front of the mesh |
 | Observability | built-in metrics + Kiali | traffic graph |
 
-### Istio vs Ingress / Gateway API (chapter 07)
+### Istio vs Ingress / Gateway API (chapter 08)
 
 - **Ingress / Gateway API** handle **north-south** traffic: from outside users **into** the cluster.
 - A **service mesh** handles **east-west** traffic: **between** services inside the cluster.
-- Istio **implements** the Gateway API, so the same `Gateway` / `HTTPRoute` resources you used with the ALB in chapter 07 work with Istio (`gatewayClassName: istio`).
+- Istio **implements** the Gateway API, so the same `Gateway` / `HTTPRoute` resources you used with the ALB in chapter 08 work with Istio (`gatewayClassName: istio`).
 
 ### When to use it (and when not)
 
@@ -80,7 +80,7 @@ kubectl get pods -n istio-system
 # expect: istiod-... and istio-ingressgateway-... Running
 ```
 
-Install the Gateway API CRDs (skip if you already did it in chapter 07):
+Install the Gateway API CRDs (skip if you already did it in chapter 08):
 ```bash
 kubectl get crd gateways.gateway.networking.k8s.io || \
 kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
@@ -200,7 +200,7 @@ Once a workload has an `ALLOW` policy, anything that does not match a rule is de
 
 Expose the app to the internet with a Gateway API `Gateway` managed by Istio. Istio sees the `Gateway`, then creates a gateway Deployment and a `LoadBalancer` Service for it (on EKS: an AWS load balancer).
 
-**Prerequisites (chapter 07):** the AWS Load Balancer Controller (it builds the NLB from the annotations under `spec.infrastructure`), ExternalDNS (it creates `mesh.afriqhome.com` from the HTTPRoute `hostnames`) and the ACM wildcard certificate. Replace `afriqhome.com` with your domain in the file.
+**Prerequisites (chapter 08):** the AWS Load Balancer Controller (it builds the NLB from the annotations under `spec.infrastructure`), ExternalDNS (it creates `mesh.afriqhome.com` from the HTTPRoute `hostnames`) and the ACM wildcard certificate. Replace `afriqhome.com` with your domain in the file.
 
 `07-gateway-api-ingress.yaml` creates the `Gateway`, an `HTTPRoute` with the same 90/10 split, and one Service per version (an `HTTPRoute` splits between **Services**, a `VirtualService` between **subsets**).
 ```bash
