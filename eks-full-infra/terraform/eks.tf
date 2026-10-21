@@ -33,6 +33,20 @@ module "eks" {
         service_account = "ebs-csi-controller-sa"
       }]
     }
+    aws-efs-csi-driver = {
+      # the controller creates/deletes access points; the node DaemonSet also calls the EFS API
+      # to find the mount target IP when DNS is not ready yet (new file systems)
+      pod_identity_association = [
+        {
+          role_arn        = module.efs_csi_pod_identity.iam_role_arn
+          service_account = "efs-csi-controller-sa"
+        },
+        {
+          role_arn        = module.efs_csi_pod_identity.iam_role_arn
+          service_account = "efs-csi-node-sa"
+        },
+      ]
+    }
   }
 
   # The EKS control plane calls Istio's webhooks (sidecar injection, config validation) on the

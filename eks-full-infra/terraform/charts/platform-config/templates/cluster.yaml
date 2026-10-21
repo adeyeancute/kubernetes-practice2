@@ -33,6 +33,23 @@ parameters:
   type: gp3
   encrypted: "true"
 ---
+# Shared storage: Amazon EFS, ReadWriteMany. Each PVC gets its own access point (directory) on the
+# cluster file system; deleting the PVC deletes the access point and its files (reclaimPolicy Delete).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs
+provisioner: efs.csi.aws.com
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: {{ .Values.efs.fileSystemId }}
+  directoryPerms: "770"
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  basePath: /apps
+---
 # Mesh-wide mutual TLS: every pod with a sidecar only accepts encrypted mesh traffic
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
@@ -42,3 +59,28 @@ metadata:
 spec:
   mtls:
     mode: STRICT
+---
+# Gateway API routes are custom resources: the built-in "edit"/"admin" roles do not cover them.
+# Aggregate them so team developers can publish their services with an HTTPRoute.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-gateway-routes-edit
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, grpcroutes]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-gateway-routes-view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, grpcroutes]
+    verbs: [get, list, watch]

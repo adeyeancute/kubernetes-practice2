@@ -1,5 +1,5 @@
 apiVersion: v2
 name: platform-config
-description: Cluster-wide platform configuration (issuers, storage, mesh policy, ArgoCD URL, app ApplicationSet)
+description: Cluster-wide platform configuration (issuers, storage, mesh policy, ArgoCD URL, Argo CD apps, add-ons and teams)
 type: application
-version: 1.0.2   # bump on every change: terraform only redeploys a local chart when its version changes
+version: 1.1.0   # bump on every change: terraform only redeploys a local chart when its version changes

@@ -1,0 +1,49 @@
+# One Argo CD Application per team file {{ .Values.gitops.teamsPath }}/<team>.yaml
+#   <team> = the file name without .yaml; the file lists the environments and optional quota overrides.
+#   The chart {{ .Values.gitops.teamChartPath }} creates, per environment, the namespace <team>-<env> with
+#   RBAC, ResourceQuota, LimitRange, NetworkPolicies and an HTTPS gateway on the shared load balancer.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: teams
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: {{ .Values.gitops.repoURL }}
+        revision: {{ .Values.gitops.revision }}
+        files:
+          - path: "{{ .Values.gitops.teamsPath }}/*.yaml"
+  template:
+    metadata:
+      name: '{{`team-{{ regexReplaceAll "[^a-z0-9-]" (lower (trimSuffix ".yaml" .path.filename)) "-" }}`}}'
+      labels:
+        app.kubernetes.io/part-of: teams
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io   # removing the file deletes the team's namespaces
+    spec:
+      project: default
+      source:
+        repoURL: {{ .Values.gitops.repoURL }}
+        targetRevision: {{ .Values.gitops.revision }}
+        path: {{ .Values.gitops.teamChartPath }}
+        helm:
+          values: |
+            platform:
+              domain: {{ .Values.domain }}
+              clusterIssuer: letsencrypt
+              monitoringNamespace: monitoring
+              ingress:
+                namespace: {{ .Values.ingress.namespace }}
+                serviceDNS: {{ .Values.ingress.serviceDNS }}
+                lbHostname: {{ .Values.ingress.lbHostname }}
+            team: {{`{{ toJson (merge (dict "name" (trimSuffix ".yaml" .path.filename)) (omit . "path")) }}`}}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default   # every object of the chart sets its own namespace
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

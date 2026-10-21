@@ -89,3 +89,9 @@ variable "versions" {
   })
   default = {}
 }
+
+variable "grafana_subdomain" {
+  description = "Grafana UI is published at <grafana_subdomain>.<domain>"
+  type        = string
+  default     = "grafana"
+}

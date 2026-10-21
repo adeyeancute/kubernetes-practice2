@@ -3,7 +3,11 @@
 #   gateway-api-crds ─┬─> aws-load-balancer-controller ─┐
 #                     └─> istio-base ─> istiod ─────────┴─> istio-ingress (shared gateway, 1 NLB)
 #   cert-manager, external-dns, argo-cd ───────────────────> platform-config (issuers, ArgoCD URL,
-#                                                              ApplicationSet that deploys apps/)
+#                                                              Argo CD: platform-addons/, teams/, apps/)
+#
+# Terraform installs what the cluster needs to start (AWS integration, certificates, DNS, mesh,
+# Argo CD). Argo CD then installs from Git what changes often: the observability add-ons
+# (platform-gitops/platform-addons), the team namespaces (teams/) and the apps (apps/).
 
 locals {
   ingress_namespace   = "istio-ingress"
@@ -197,14 +201,23 @@ resource "helm_release" "platform_config" {
       serviceDNS = local.ingress_service_dns
       lbHostname = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].hostname
     }
+    efs = {
+      fileSystemId = aws_efs_file_system.this.id
+    }
     argocd = {
       host = "${var.argocd_subdomain}.${var.domain}"
     }
+    grafana = {
+      subdomain = var.grafana_subdomain
+    }
     gitops = {
-      repoURL   = var.gitops_repo_url
-      revision  = var.gitops_revision
-      appsPath  = "apps"
-      chartPath = "app-template"
+      repoURL       = var.gitops_repo_url
+      revision      = var.gitops_revision
+      appsPath      = "apps"
+      chartPath     = "app-template"
+      addonsPath    = "platform-addons"
+      teamsPath     = "teams"
+      teamChartPath = "team-template"
     }
   })]
 
@@ -213,6 +226,8 @@ resource "helm_release" "platform_config" {
     helm_release.external_dns,
     helm_release.istio_ingress,
     helm_release.argo_cd,
+    aws_efs_mount_target.this, # apps with a shared volume need the mount targets; on destroy the
+    # apps (and their EFS access points) are deleted before the file system
   ]
 }
 

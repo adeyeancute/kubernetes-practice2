@@ -1,0 +1,37 @@
+# Platform add-ons managed by Argo CD from Git (Prometheus, Grafana, Loki, Fluent Bit):
+# the chart {{ .Values.gitops.addonsPath }} holds one Argo CD Application per add-on, with its
+# version and values. Terraform only passes what depends on this cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-addons
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: platform-addons
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io   # deleting it deletes the add-ons
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitops.repoURL }}
+    targetRevision: {{ .Values.gitops.revision }}
+    path: {{ .Values.gitops.addonsPath }}
+    helm:
+      valuesObject:
+        platform:
+          domain: {{ .Values.domain }}
+          ingress:
+            namespace: {{ .Values.ingress.namespace }}
+            serviceDNS: {{ .Values.ingress.serviceDNS }}
+            lbHostname: {{ .Values.ingress.lbHostname }}
+        grafana:
+          subdomain: {{ .Values.grafana.subdomain }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

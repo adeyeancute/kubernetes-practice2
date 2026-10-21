@@ -23,3 +23,15 @@ output "ingress_load_balancer" {
 output "app_url_pattern" {
   value = "https://<name>-<env>.${var.domain}  (env=prod: https://<name>.${var.domain})"
 }
+
+output "grafana_url" {
+  value = "https://${var.grafana_subdomain}.${var.domain}"
+}
+
+output "grafana_admin_password_command" {
+  value = "kubectl -n monitoring get secret grafana -o jsonpath='{.data.admin-password}' | base64 -d; echo"
+}
+
+output "team_url_pattern" {
+  value = "https://<service>.<team>-<env>.${var.domain}  (env=prod: https://<service>.<team>.${var.domain})"
+}

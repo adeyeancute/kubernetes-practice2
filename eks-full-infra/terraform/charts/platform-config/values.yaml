@@ -9,10 +9,17 @@ ingress:
   namespace: istio-ingress
   serviceDNS: istio-ingress.istio-ingress.svc.cluster.local
   lbHostname: ""
+efs:
+  fileSystemId: ""
 argocd:
   host: argocd.example.com
+grafana:
+  subdomain: grafana
 gitops:
   repoURL: ""
   revision: main
   appsPath: apps
   chartPath: app-template
+  addonsPath: platform-addons
+  teamsPath: teams
+  teamChartPath: team-template

@@ -51,7 +51,7 @@ Deleting the folder (or the file) removes everything again, including the namesp
 |---|---|---|---|
 | VPC | module `terraform-aws-modules/vpc` 6.x | `terraform/vpc.tf` | 3 AZs, private subnets for nodes and pods, public subnets for the NLB, 1 NAT gateway |
 | EKS | 1.36, module `terraform-aws-modules/eks` 21.x | `terraform/eks.tf` | control plane (secrets encrypted with KMS) + managed node group (3 x t3.large, 2 to 5) |
-| EKS add-ons | latest for 1.36 | `terraform/eks.tf` | VPC CNI (NetworkPolicy enforcement on), CoreDNS, kube-proxy, Pod Identity agent, metrics-server, EBS CSI |
+| EKS add-ons | latest for 1.36 | `terraform/eks.tf` | VPC CNI (NetworkPolicy enforcement on), CoreDNS, kube-proxy, Pod Identity agent, metrics-server, EBS CSI, EFS CSI |
 | IAM | module `terraform-aws-modules/eks-pod-identity` 2.x | `terraform/pod-identity.tf` | one role per controller with EKS Pod Identity (no OIDC, no annotations) |
 | Gateway API CRDs | v1.6.0 standard | local chart `terraform/charts/gateway-api-crds` | `Gateway`, `HTTPRoute`, ... |
 | AWS Load Balancer Controller | 3.6.0 | Helm | builds the NLB of the Istio ingress Service |
@@ -59,7 +59,12 @@ Deleting the folder (or the file) removes everything again, including the namesp
 | cert-manager | v1.21.2 | Helm | `ClusterIssuer letsencrypt` (ACME DNS-01 in Route 53) |
 | ExternalDNS | 0.23.0 (chart 1.23.0) | Helm | Route 53 records from HTTPRoute hostnames, TXT ownership `owner=<cluster_name>` |
 | Argo CD | v3.5.5 (chart 10.10.5) | Helm | GitOps engine, UI at `https://argocd.<domain>` |
-| Platform config | local chart `terraform/charts/platform-config` | Helm | ClusterIssuer, default `gp3` StorageClass, mesh mTLS, Argo CD URL, ApplicationSet |
+| EFS | `aws_efs_file_system` | `terraform/efs.tf` | one encrypted file system (elastic throughput), a mount target per AZ, NFS (2049) from the nodes only |
+| Platform config | local chart `terraform/charts/platform-config` | Helm | ClusterIssuer, StorageClasses `gp3` (default, EBS) and `efs` (one access point per PVC), mesh mTLS, Argo CD URL, HTTPRoute RBAC for teams, Argo CD Application `platform-addons`, ApplicationSets `teams` and `apps` |
+| Prometheus + Grafana | kube-prometheus-stack 92.11.0 | **Argo CD**, `platform-gitops/platform-addons` | metrics (7 days on a 20 Gi gp3 volume), Grafana at `https://grafana.<domain>` with Prometheus and Loki data sources |
+| Loki | chart 7.3.0 (Loki 3.6) | **Argo CD**, `platform-gitops/platform-addons` | logs, single binary, 7 days on a 20 Gi gp3 volume |
+| Fluent Bit | chart 0.58.3 (Fluent Bit 5.1) | **Argo CD**, `platform-gitops/platform-addons` | one pod per node, ships every container log to Loki with the labels `namespace`, `pod`, `container` |
+| Team namespaces | chart `platform-gitops/team-template` | **Argo CD**, ApplicationSet `teams` | per team and environment: namespace, RBAC, ResourceQuota, LimitRange, NetworkPolicies, wildcard HTTPS gateway |
 
 (The Istio Helm repository publishes charts up to 1.30.6 at the time of writing. `istioctl` 1.31 exists but its charts are not published yet.)
 
@@ -71,6 +76,9 @@ Deleting the folder (or the file) removes everything again, including the namesp
 - **App name and environment come from the path** (`apps/<name>/<env>.yaml`), never from the file content: the folder name is the app, the file name is the environment. A team cannot deploy under another name by mistake.
 - **Pod Identity for every controller** (load balancer controller, ExternalDNS, cert-manager, EBS CSI, VPC CNI). The Route 53 permissions of ExternalDNS and cert-manager are limited to the one hosted zone.
 - **ExternalDNS `policy: sync` + TXT registry**: it deletes the records it created when an app goes away, and never touches records it does not own (the existing records of the zone stayed untouched during all tests).
+- **Terraform builds, Argo CD runs.** Terraform installs what the cluster needs to start and everything wired to AWS (VPC, EKS, add-ons, IAM, EFS, the load balancer controller, cert-manager, ExternalDNS, Istio, Argo CD itself). Argo CD then installs from Git what changes often and needs no AWS wiring: the observability add-ons, the team namespaces and the apps. Upgrading Grafana or adding a team is a pull request, not a `terraform apply`. One `terraform apply` still builds everything: its last step creates the Argo CD objects that pull the rest.
+- **Team isolation, one control per risk.** Namespace per team and environment (blast radius); RBAC groups `<team>-admins` and `<team>-developers`, developers read-only in prod (who can change what); ResourceQuota and LimitRange (one team cannot starve the others), with `services.loadbalancers: 0` and `services.nodeports: 0` (no team can bypass the shared load balancer); NetworkPolicies, default deny for incoming traffic, allowed only from the same namespace, the ingress gateway and Prometheus (no lateral movement between teams).
+- **EBS by default, EFS when pods share files.** `gp3` (EBS, ReadWriteOnce) is the default StorageClass: fast, cheap, one pod at a time, one AZ. `efs` (ReadWriteMany) is for data several pods read and write at once, across AZs; each claim gets its own access point (directory, owner) on the single cluster file system.
 - **Two guardrails against a bad app request**: the GitHub Actions check refuses invalid folder or file names before the merge, and the ApplicationSet sanitizes Application and namespace names so that an invalid request that reaches `main` only breaks itself (see 8.6).
 
 ## 3. Prerequisites
@@ -98,6 +106,22 @@ Log in to Argo CD as `admin`, then change the password (User Info > Update passw
 
 ## 5. Verify
 
+One script proves every required outcome without deploying a real application. It creates its test objects, prints `PASS`/`FAIL` per check and cleans up:
+```bash
+bash scripts/readiness-check.sh
+```
+| Section | What it proves |
+|---|---|
+| 1. Cluster and add-ons | nodes Ready, every EKS add-on `ACTIVE`, every controller available |
+| 2. GitOps | the Argo CD applications of the add-ons and the teams are `Synced/Healthy` |
+| 3. Storage | StorageClasses `gp3` (default) and `efs`; two pods on **different nodes** mount one EFS volume, one writes a file, the other reads it |
+| 4. Multi-tenancy | quota, limits and default-deny policy in each team namespace; `kubectl auth can-i` for developers and admins (dev vs prod vs another team); a `LoadBalancer` Service is refused by the quota; a pod of another team cannot reach the team's service, a pod of the same namespace can |
+| 5. Ingress | **one** AWS load balancer for all the Gateways; a test service published through the team gateway answers over HTTPS with a trusted certificate |
+| 6. Observability | Prometheus, Grafana, Loki and Fluent Bit running; through Grafana's API, Prometheus has metrics and Loki has logs for a team namespace |
+
+Result of the test run on 2026-10-20: `== 46 passed, 0 failed ==`.
+
+Manual checks:
 ```bash
 kubectl get pods -A | grep -vE "Running|Completed"      # nothing (except pods being created)
 kubectl get clusterissuer letsencrypt                    # READY True
@@ -153,6 +177,28 @@ Measured: push of a new app -> HTTPS 200 in **~4.5 minutes**. Update (`replicas:
 | Argo CD Application | `<name>-<env>` | `argocd` |
 | Subdomain | `<name>-<env>.<domain>`, prod: `<name>.<domain>` | |
 
+### Team namespaces
+
+A team gets its namespaces with one file in `platform-gitops`: `teams/<team>.yaml` (the file name is the team name). The ApplicationSet `teams` creates the Argo CD Application `team-<team>`, which renders `team-template` and creates, for each environment in `envs`:
+
+| Object | Name | Namespace |
+|---|---|---|
+| Namespace (labels `platform/team`, `platform/env`, `istio-injection: enabled`) | `<team>-<env>` | |
+| RoleBinding group `<team>-admins` -> ClusterRole `admin` | `<team>-admins` | `<team>-<env>` |
+| RoleBinding group `<team>-developers` -> `edit` (`view` in prod) | `<team>-developers` | `<team>-<env>` |
+| ResourceQuota (CPU, memory, pods, PVCs, storage, 0 LoadBalancer, 0 NodePort) and LimitRange | `<team>-quota`, `<team>-defaults` | `<team>-<env>` |
+| NetworkPolicies | `default-deny-ingress`, `allow-same-namespace`, `allow-ingress-gateway`, `allow-monitoring` | `<team>-<env>` |
+| Wildcard Certificate and Gateway on the shared ingress | `<team>-<env>-tls`, `<team>-<env>` | `istio-ingress` |
+| HTTP -> HTTPS redirect for the whole wildcard | `https-redirect` | `<team>-<env>` |
+
+The team publishes a service with an `HTTPRoute` in its namespace, parent the Gateway `<team>-<env>` (section `https`), hostname `<anything>.<team>-<env>.<domain>` (prod: `<anything>.<team>.<domain>`). ExternalDNS creates the record; the wildcard certificate already covers it.
+
+People get the groups through EKS access entries: map the team's IAM role to the Kubernetes groups, for example
+```bash
+aws eks create-access-entry --cluster-name platform --principal-arn arn:aws:iam::<account>:role/payments-developers \
+  --kubernetes-groups payments-developers
+```
+
 ## 7. Operations
 
 | Task | How |
@@ -162,6 +208,8 @@ Measured: push of a new app -> HTTPS 200 in **~4.5 minutes**. Update (`replicas:
 | Change what every app gets | edit `app-template` in `platform-gitops` (e.g. add a NetworkPolicy), run `./scripts/validate.sh`, merge: Argo CD updates every app within 3 minutes. |
 | Upgrade Kubernetes | `kubernetes_version = "1.37"`, `terraform apply` (control plane, then add-ons, then node group rolling update; PDBs keep the apps up). One minor version at a time. |
 | More capacity | `node_max_size` / `node_desired_size` / `node_instance_types`, `terraform apply`. |
+| Change an observability add-on (version, retention, values) | edit `platform-addons/` in `platform-gitops`, pull request, merge: Argo CD applies it. |
+| Add or change a team | add or edit `teams/<team>.yaml` in `platform-gitops` (`./scripts/validate.sh` checks it), merge. Removing the file deletes the team's namespaces and everything in them. |
 | See every app | Argo CD UI, or `kubectl get applications -n argocd -l app.kubernetes.io/part-of=apps` |
 | Force Argo CD to read Git now | Argo CD UI > the app > Refresh, or `kubectl annotate application <name>-<env> -n argocd argocd.argoproj.io/refresh=normal --overwrite` |
 
@@ -208,7 +256,23 @@ Symptoms: `[pre-destroy] ExternalDNS records left: 4`, `Unable to uninstall Helm
 Cause: Terraform deleted the NAT gateway in parallel with the cleanup: the nodes lost internet access, so the controllers could no longer call AWS (Pod Identity needs the EKS Auth endpoint). Fixed: the controllers and `terraform_data.pre_destroy` depend on `module.vpc`, so the network is destroyed last.
 If it ever happens again: `terraform apply` (recreates the network and the controllers), `helm uninstall` any release Helm lists as failed, then `terraform destroy`.
 
-### 8.9 Useful commands
+### 8.9 `terraform apply` was interrupted: the cluster exists but is not in the state
+The next plan wants to create `module.eks.aws_eks_cluster.this[0]` although `aws eks list-clusters` shows it; an apply fails with "already exists". `terraform import` on the command line fails in this module ("The count value depends on resource attributes that cannot be determined until apply"). Use an import block instead, in a temporary file `import.tf`:
+```hcl
+import {
+  to = module.eks.aws_eks_cluster.this[0]
+  id = "platform"
+}
+```
+`terraform plan` must show `1 to import` and no replacement; `terraform apply`; delete `import.tf`.
+
+### 8.10 An app with a shared volume crashloops on its first start
+Example: nginx serving its web root from a new EFS volume. The volume is empty, the health path answers 404, the liveness probe kills the pod. The storage works; the app needs its content. Write it once from any pod (`kubectl exec ... -- sh -c 'echo ok > /usr/share/nginx/html/healthz.html'`), or seed it with an init container.
+
+### 8.11 `kubectl exec ... -- cat /data/file` fails on Windows with `C:/Program Files/Git/data/file`
+Git Bash rewrites arguments that look like Unix paths. Run with `MSYS_NO_PATHCONV=1` (the readiness check sets it), or wrap the command in `sh -c '...'`.
+
+### 8.12 Useful commands
 ```bash
 kubectl get applicationset apps -n argocd -o yaml | grep -A3 conditions
 kubectl get application <name>-<env> -n argocd -o jsonpath='{.status.conditions[*].message}'
@@ -223,9 +287,11 @@ istioctl proxy-status                                                # needs ist
 cd eks-full-infra/terraform
 terraform destroy
 ```
-`terraform destroy` first runs `scripts/pre-destroy.sh` (resource `terraform_data.pre_destroy`): it deletes the ApplicationSet, waits until Argo CD has deleted every app, deletes the Argo CD routes, and waits until ExternalDNS has removed every Route 53 record it owns. Only then are Argo CD, ExternalDNS, the load balancer controller (and its NLB), the cluster and the VPC deleted. This order matters: if the controller goes away first, the NLB and the DNS records are left behind.
+`terraform destroy` first runs `scripts/pre-destroy.sh` (resource `terraform_data.pre_destroy`): it deletes the ApplicationSets `apps` and `teams` and the Application `platform-addons`, waits until Argo CD has deleted every app, team namespace and add-on, deletes the volumes left behind (StatefulSet PVCs such as Prometheus and Loki: the CSI drivers then delete the EBS volumes and EFS access points), deletes the Argo CD routes, and waits until ExternalDNS has removed every Route 53 record it owns. Only then are Argo CD, ExternalDNS, the load balancer controller (and its NLB), the EFS file system, the cluster and the VPC deleted. This order matters: if a controller goes away first, the NLB, the volumes and the DNS records are left behind.
 
-Result of the test run (`Destroy complete! Resources: 92 destroyed.`):
+If the script prints `WARNING: these volumes may outlive the cluster`, delete the listed EBS volumes (`aws ec2 delete-volume`) after the destroy.
+
+Result of the test run before EFS and the add-ons (`Destroy complete! Resources: 92 destroyed.`):
 ```
 [pre-destroy] deleting the ApplicationSet and the apps
 [pre-destroy] apps left: 0
@@ -235,12 +301,14 @@ Result of the test run (`Destroy complete! Resources: 92 destroyed.`):
 helm_release.istio_ingress: Destruction complete after 24s   <- the NLB is deleted here
 module.vpc.aws_nat_gateway.this[0]: Destruction complete ...   <- the network goes last
 ```
-Afterwards: no EKS cluster, load balancer, VPC, Elastic IP, instance, EBS volume, IAM role/policy or log group left; the Route 53 zone is back to its original records. The KMS key of the cluster is in `PendingDeletion` for 30 days (standard AWS behaviour, no cost).
+Afterwards: no EKS cluster, load balancer, VPC, Elastic IP, instance, EBS volume, IAM role/policy or log group left; the Route 53 zone is back to its original records. After the destroy with EFS, the add-ons and the teams (2026-10-20): also no EFS file system, no unattached EBS volume, no EFS security group. The KMS key of the cluster is in `PendingDeletion` for 30 days (standard AWS behaviour, no cost).
 
 Check yourself:
 ```bash
 aws eks list-clusters
 aws elbv2 describe-load-balancers --query "LoadBalancers[].LoadBalancerName"
+aws efs describe-file-systems --query "FileSystems[].Name"
+aws ec2 describe-volumes --filters Name=status,Values=available --query "Volumes[].VolumeId"
 aws route53 list-resource-record-sets --hosted-zone-id <zone-id> --query "ResourceRecordSets[].Name"
 ```
 
@@ -252,5 +320,5 @@ aws route53 list-resource-record-sets --hosted-zone-id <zone-id> --query "Resour
 | 3 x t3.large nodes | ~$180 |
 | NAT gateway (1) + data | ~$35+ |
 | NLB (1, shared by all apps) | ~$17+ |
-| KMS key (secrets encryption), Route 53 queries, EBS | a few $ |
+| KMS key (secrets encryption), Route 53 queries, EBS (Prometheus and Loki, 40 Gi gp3), EFS (per GB stored) | ~$5+ |
 | **Total** | **~$310 / month** for the platform, whatever the number of apps (until the nodes are full) |

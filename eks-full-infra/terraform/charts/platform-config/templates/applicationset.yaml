@@ -36,6 +36,9 @@ spec:
             platform:
               domain: {{ .Values.domain }}
               clusterIssuer: letsencrypt
+              storageClasses:
+                shared: efs     # EFS, ReadWriteMany
+                disk: gp3       # EBS, ReadWriteOnce
               ingress:
                 namespace: {{ .Values.ingress.namespace }}
                 serviceDNS: {{ .Values.ingress.serviceDNS }}
